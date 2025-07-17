@@ -113,10 +113,11 @@
 
                 <!-- Recent Transactions -->
                 <div class="card">
-                    <div class="section-title">
+                    <div class="section-title" onclick="toggleTransactions()" style="cursor: pointer;">
                         <span><span class="section-icon">💳</span> Recent Transactions</span>
+                        <span class="collapse-arrow" id="transactions-arrow">▼</span>
                     </div>
-                    <div class="transactions-list" id="transactions-list">
+                    <div class="transactions-list" id="transactions-list" style="display: none;">
                         <!-- Transactions will be populated by JavaScript -->
                     </div>
                 </div>
@@ -253,6 +254,23 @@
     </div>
 
     <!-- Modals -->
+    <!-- Transaction Details Modal -->
+    <div id="transactionModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Transaction Details</h3>
+                <button class="close-btn" onclick="closeTransactionModal()">&times;</button>
+            </div>
+            <div id="transaction-details-content">
+                <!-- Transaction details will be populated by JavaScript -->
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn" onclick="markTransactionAsRead()">Mark as Read</button>
+                <button class="modal-btn cancel" onclick="closeTransactionModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Add Link Modal -->
     <div id="linkModal" class="modal">
         <div class="modal-content">

@@ -1159,10 +1159,13 @@ function renderTransactions() {
     const container = document.getElementById('transactions-list');
     if (!container) return;
     
-    const transactions = (appData.transactions || []).slice(0, 5);
+    // Filter out read transactions
+    const allTransactions = (appData.transactions || []);
+    const unreadTransactions = allTransactions.filter(t => !t.isRead);
+    const transactions = unreadTransactions.slice(0, 5);
     
     if (transactions.length === 0) {
-        container.innerHTML = '<div style="text-align: center; color: rgba(255, 255, 255, 0.5); padding: 20px; font-size: 12px;">No transactions yet</div>';
+        container.innerHTML = '<div style="text-align: center; color: rgba(255, 255, 255, 0.5); padding: 20px; font-size: 12px;">No unread transactions</div>';
         return;
     }
     
@@ -1172,7 +1175,7 @@ function renderTransactions() {
         const amountDisplay = `${sign}₹${transaction.amount.toLocaleString()}`;
         
         return `
-            <div class="transaction-item ${transaction.type}">
+            <div class="transaction-item ${transaction.type}" onclick="showTransactionDetails(${transaction.id})">
                 <div class="transaction-main">
                     <div class="transaction-amount ${transaction.type}">${amountDisplay}</div>
                     <div class="transaction-details">
@@ -1202,6 +1205,105 @@ function getTimeAgo(timestamp) {
     if (diffInDays < 7) return `${diffInDays}d ago`;
     
     return time.toLocaleDateString();
+}
+
+// Transaction functions
+let currentTransactionId = null;
+
+function toggleTransactions() {
+    const container = document.getElementById('transactions-list');
+    const arrow = document.getElementById('transactions-arrow');
+    
+    if (container.style.display === 'none') {
+        container.style.display = 'block';
+        arrow.classList.add('expanded');
+        arrow.textContent = '▲';
+    } else {
+        container.style.display = 'none';
+        arrow.classList.remove('expanded');
+        arrow.textContent = '▼';
+    }
+}
+
+function showTransactionDetails(transactionId) {
+    const transaction = appData.transactions.find(t => t.id === transactionId);
+    if (!transaction) return;
+    
+    currentTransactionId = transactionId;
+    
+    const sign = transaction.type === 'credited' ? '+' : '-';
+    const amountDisplay = `${sign}₹${transaction.amount.toLocaleString()}`;
+    
+    const detailsHtml = `
+        <div class="transaction-amount-large ${transaction.type}">
+            ${amountDisplay}
+        </div>
+        
+        <div class="transaction-detail-row">
+            <span class="transaction-detail-label">Type:</span>
+            <span class="transaction-detail-value">${transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}</span>
+        </div>
+        
+        <div class="transaction-detail-row">
+            <span class="transaction-detail-label">Description:</span>
+            <span class="transaction-detail-value">${transaction.description}</span>
+        </div>
+        
+        <div class="transaction-detail-row">
+            <span class="transaction-detail-label">Bank:</span>
+            <span class="transaction-detail-value">${transaction.bank}</span>
+        </div>
+        
+        <div class="transaction-detail-row">
+            <span class="transaction-detail-label">Mode:</span>
+            <span class="transaction-detail-value">${transaction.mode}</span>
+        </div>
+        
+        ${transaction.balance ? `
+        <div class="transaction-detail-row">
+            <span class="transaction-detail-label">Balance:</span>
+            <span class="transaction-detail-value">₹${transaction.balance.toLocaleString()}</span>
+        </div>
+        ` : ''}
+        
+        <div class="transaction-detail-row">
+            <span class="transaction-detail-label">Date & Time:</span>
+            <span class="transaction-detail-value">${new Date(transaction.timestamp).toLocaleString()}</span>
+        </div>
+        
+        <div class="transaction-detail-row">
+            <span class="transaction-detail-label">Transaction ID:</span>
+            <span class="transaction-detail-value">${transaction.id}</span>
+        </div>
+        
+        ${transaction.rawMessage ? `
+        <div class="transaction-detail-row">
+            <span class="transaction-detail-label">Raw Message:</span>
+            <span class="transaction-detail-value" style="font-size: 12px; color: rgba(255, 255, 255, 0.7);">${transaction.rawMessage}</span>
+        </div>
+        ` : ''}
+    `;
+    
+    document.getElementById('transaction-details-content').innerHTML = detailsHtml;
+    document.getElementById('transactionModal').style.display = 'block';
+}
+
+function markTransactionAsRead() {
+    if (!currentTransactionId) return;
+    
+    const transaction = appData.transactions.find(t => t.id === currentTransactionId);
+    if (transaction) {
+        transaction.isRead = true;
+        saveDataToStorage();
+        closeTransactionModal();
+        renderTransactions();
+        console.log('📖 Transaction marked as read:', transaction.id);
+    }
+}
+
+function closeTransactionModal() {
+    document.getElementById('transactionModal').style.display = 'none';
+    currentTransactionId = null;
 }
 
 function addQuickLink() {
@@ -1447,11 +1549,15 @@ function importData(event) {
 
 // Close modals and search when clicking outside
 window.onclick = function(event) {
-    const modals = ['linkModal', 'taskNoteModal', 'filterModal', 'trashInstructionsModal'];
+    const modals = ['linkModal', 'taskNoteModal', 'filterModal', 'trashInstructionsModal', 'transactionModal'];
     modals.forEach(modalId => {
         const modal = document.getElementById(modalId);
         if (event.target === modal) {
             modal.style.display = 'none';
+            // Special handling for transaction modal
+            if (modalId === 'transactionModal') {
+                currentTransactionId = null;
+            }
         }
     });
     
