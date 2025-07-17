@@ -356,8 +356,8 @@
         .transactions-list {
             display: flex;
             flex-direction: column;
-            gap: 8px;
-            max-height: 200px;
+            gap: 12px;
+            max-height: 200px;      
             overflow-y: auto;
         }
 
@@ -365,11 +365,12 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 8px 12px;
+            padding: 12px 16px;
             background: rgba(255, 255, 255, 0.1);
             border-radius: 8px;
             border-left: 4px solid;
             font-size: 12px;
+            margin: 5px 0;
         }
 
         .transaction-item.credited {
