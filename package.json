@@ -1,0 +1,71 @@
+{
+  "name": "dashboard-electron",
+  "version": "1.0.0",
+  "description": "A beautiful desktop dashboard built with Electron",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "NODE_ENV=development electron .",
+    "wallpaper": "electron .",
+    "build": "electron-builder",
+    "build:mac": "electron-builder --mac",
+    "build:win": "electron-builder --win",
+    "build:linux": "electron-builder --linux",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "^37.2.1",
+    "electron-builder": "^26.0.12"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "electron-store": "^10.1.0",
+    "express": "^5.1.0"
+  },
+  "build": {
+    "appId": "com.dashboard.electron",
+    "productName": "Dashboard",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "assets/**/*",
+      "node_modules/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": "dmg",
+      "icon": "assets/icon.icns",
+      "extendInfo": {
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLName": "Dashboard Electron",
+            "CFBundleURLSchemes": [
+              "dashboard-electron"
+            ]
+          }
+        ],
+        "NSUserActivityTypes": [
+          "com.dashboard.electron.add-task",
+          "com.dashboard.electron.show-tasks",
+          "com.dashboard.electron.complete-task"
+        ]
+      }
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "assets/icon.png"
+    }
+  }
+}

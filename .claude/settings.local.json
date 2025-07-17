@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(chmod:*)",
+      "Bash(./create-launch-agent.sh:*)",
+      "Bash(mkdir:*)"
+    ],
+    "deny": []
+  }
+}

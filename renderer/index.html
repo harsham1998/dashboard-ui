@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Desktop Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+   
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        
+        
+        <!-- Header Row -->
+        <div class="header-row">
+            <!-- Indian Clock -->
+            <div class="card clock-card">
+                <div class="clock-time" id="indian-clock">--:--:--</div>
+                <div class="clock-label">Indian Time</div>
+            </div>
+
+            <!-- US Clock -->
+            <div class="card clock-card">
+                <div class="clock-time" id="us-clock">--:--:--</div>
+                <div class="clock-label">US Central Time</div>
+            </div>
+
+            <!-- Date & Weather -->
+            <div class="card date-weather-card">
+                <div class="date-weather-section">
+                    <div class="date-info">
+                        <div class="date-today" id="current-date">--</div>
+                        <div class="special-event" id="special-event" style="display: none;">Regular Day</div>
+                    </div>
+                    <div class="weather-info">
+                        <div class="weather-icon" id="weather-icon">🌤️</div>
+                        <div class="weather-details">
+                            <div class="weather-temp" id="temperature">--°C</div>
+                            <div class="weather-condition" id="condition">Loading...</div>
+                            <div class="weather-location" id="weather-location">Hyderabad, IN</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- App Launcher Section -->
+            <div class="card app-launcher-card">
+                <div class="app-launcher-section">
+                    <div class="app-launcher-grid">
+                        <!-- Row 1 -->
+                        <button class="app-icon thunderbird-icon" onclick="openApp('Thunderbird')" title="Thunderbird">
+                            <img src="../assets/thunderbird-icon-logo-png_seeklogo-490900.png" alt="Thunderbird" class="app-icon-img"/>
+                        </button>
+                        <button class="app-icon teams-icon" onclick="openApp('Microsoft Teams')" title="Microsoft Teams">
+                            <img src="../assets/microsoft-teams-logo-png_seeklogo-370282.png" alt="Teams" class="app-icon-img"/>
+                        </button>
+                        <button class="app-icon parallels-icon" onclick="openApp('Parallels Desktop')" title="Parallels Desktop">
+                            <span class="app-icon-fallback">🖥️</span>
+                        </button>
+                        <button class="app-icon dbeaver-icon" onclick="openApp('DBeaver Community')" title="DBeaver">
+                            <img src="../assets/dbeaver-logo-E07205C498-seeklogo.com.png" alt="DBeaver" class="app-icon-img"/>
+                        </button>
+                        <button class="app-icon devices-icon" onclick="openApp('Microsoft Remote Desktop')" title="Remote Desktop">
+                            <img src="../assets/windows-10-icon-logo-png_seeklogo-267364.png" alt="Remote Desktop" class="app-icon-img"/>
+                        </button>
+                        
+                        <!-- Row 2 -->
+                        <button class="app-icon vscode-icon" onclick="openApp('Visual Studio Code')" title="VS Code">
+                            <img src="../assets/visual-studio-code-logo-png_seeklogo-384323.png" alt="VS Code" class="app-icon-img"/>
+                        </button>
+                        <button class="app-icon chatgpt-icon" onclick="openApp('ChatGPT')" title="ChatGPT">
+                            <img src="../assets/chatgpt-logo-png_seeklogo-465219.png" alt="ChatGPT" class="app-icon-img"/>
+                        </button>
+                        <button class="app-icon claude-icon" onclick="openApp('Claude')" title="Claude">
+                            <img src="../assets/claude-logo-png_seeklogo-554534.png" alt="Claude" class="app-icon-img"/>
+                        </button>
+                        <button class="app-icon whatsapp-icon" onclick="openApp('WhatsApp')" title="WhatsApp">
+                            <img src="../assets/whatsapp-icon-logo-png_seeklogo-285144.png" alt="WhatsApp" class="app-icon-img"/>
+                        </button>
+                        <button class="app-icon trash-icon" onclick="openSystemTrash()" title="Open System Trash">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Motivational Message -->
+        <div class="card motivation-card">
+            <p class="motivation-text" id="motivation">"Today is your opportunity to build the tomorrow you want."</p>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            
+            <!-- Left Sidebar -->
+            <div class="left-sidebar">
+                
+                <!-- Quick Links -->
+                <div class="card">
+                    <div class="section-title">
+                        <span><span class="section-icon">🔗</span> Quick Links</span>
+                    </div>
+                    <div class="quick-links" id="quick-links-list">
+                        <!-- Quick links will be populated by JavaScript -->
+                    </div>
+                    <button class="add-link-btn" onclick="addQuickLink()">
+                        <span>➕</span>
+                        Add Link
+                    </button>
+                </div>
+
+                <!-- Recent Transactions -->
+                <div class="card">
+                    <div class="section-title">
+                        <span><span class="section-icon">💳</span> Recent Transactions</span>
+                    </div>
+                    <div class="transactions-list" id="transactions-list">
+                        <!-- Transactions will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Center - Todo -->
+            <div class="card todo-container">
+                
+                <!-- Todo Header with Search and Filter -->
+                <div class="todo-header">
+                    <button class="nav-btn" onclick="navigateDate(-1)">◀️</button>
+                    
+                    <div class="todo-title">
+                        <h2>To-Do List</h2>
+                        <p class="todo-date" id="todo-date">--</p>
+                    </div>
+                    
+                    <div class="search-filter-section">
+                        <input 
+                            type="text" 
+                            id="search-task-input"
+                            placeholder="Search tasks..."
+                            class="search-input"
+                            oninput="searchTasks()"
+                        />
+                        <button class="filter-btn" id="filter-btn" onclick="openFilterModal()">
+                            <span>🔍</span>
+                            Filter
+                        </button>
+                        <div id="search-results" class="search-results" style="display: none;"></div>
+                    </div>
+                    
+                    <button class="nav-btn" onclick="navigateDate(1)">▶️</button>
+                </div>
+
+                <!-- Add Task -->
+                <div class="add-task">
+                    <input 
+                        type="text" 
+                        id="new-task-input"
+                        placeholder="Add a new task..."
+                        class="task-input"
+                        onkeypress="if(event.key==='Enter') addTask()"
+                    />
+                    <button onclick="addTask()" class="add-btn">➕ Add</button>
+                </div>
+
+                <!-- Tasks List -->
+                <div class="tasks-list" id="tasks-container">
+                    <div class="empty-state">
+                        <div style="text-align: center; padding: 32px 16px; color: #64748b;">
+                            <div style="font-size: 32px; margin-bottom: 12px;">📝</div>
+                            <p>Add your first task above to get started!</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Progress -->
+                <div id="progress-section" class="progress-section" style="display: none;">
+                    <div class="progress-info">
+                        <span id="progress-text">Progress: 0/0</span>
+                        <span id="progress-percent">0%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div id="progress-fill" class="progress-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Sidebar -->
+            <div class="right-sidebar">
+                
+                <!-- Quick Notes -->
+                <div class="card">
+                    <div class="section-title">
+                        <span><span class="section-icon">📝</span> Quick Notes</span>
+                    </div>
+                    <textarea 
+                        id="quick-notes"
+                        placeholder="Type your notes here..."
+                        class="notes-textarea"
+                        oninput="saveNotes()"
+                        onpaste="console.log('HTML onpaste triggered'); handleQuickNotesPaste(event)"
+                        onchange="console.log('HTML onchange triggered'); saveNotes()"
+                        onkeydown="if(event.ctrlKey && event.key === 'v') { console.log('Ctrl+V detected'); handleQuickNotesPaste(event); }"
+                    ></textarea>
+                    <div class="auto-save" id="save-status">Auto-saved to JSON file</div>
+                </div>
+
+                <!-- Important Feed -->
+                <div class="card" style="flex: 1;">
+                    <div class="section-title">
+                        <span><span class="section-icon">⭐</span> Important Feed</span>
+                    </div>
+                    <div 
+                        class="important-feed" 
+                        id="important-feed"
+                        style="min-height: 300px;"
+                        ondrop="dropToImportant(event)" 
+                        ondragover="allowDrop(event)"
+                        ondragenter="dragEnter(event)"
+                        ondragleave="dragLeave(event)"
+                    >
+                        <div id="important-list">
+                            <!-- Important items will be populated by JavaScript -->
+                        </div>
+                        <div class="feed-empty" id="feed-empty">
+                            📌 Drag tasks here to make them important<br>
+                            <small>They'll stay visible on all days</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="card footer">
+            <div class="footer-text">
+                💡 Click tasks to add notes/issues/appreciation • Drag tasks to Important Feed • Click Important Feed items to navigate • Search and filter tasks • All data saved to JSON file
+            </div>
+            
+            <div class="footer-actions">
+                <button onclick="exportData()" class="action-btn">
+                    <span>📤</span>
+                    Export JSON
+                </button>
+                <button onclick="document.getElementById('import-file').click()" class="action-btn">
+                    <span>📁</span>
+                    Import JSON
+                </button>
+                <input type="file" id="import-file" accept=".json" onchange="importData(event)" style="display: none;">
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <!-- Add Link Modal -->
+    <div id="linkModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Add Quick Link</h3>
+                <button class="close-btn" onclick="closeLinkModal()">&times;</button>
+            </div>
+            <input type="text" id="link-name" class="modal-input" placeholder="Link Name (e.g., Gmail)">
+            <input type="text" id="link-url" class="modal-input" placeholder="URL (e.g., https://gmail.com)">
+            <div class="modal-actions">
+                <button class="modal-btn cancel" onclick="closeLinkModal()">Cancel</button>
+                <button class="modal-btn" onclick="saveLinkModal()">Add Link</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task Note Modal -->
+    <div id="taskNoteModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Task Details</h3>
+                <button class="close-btn" onclick="closeTaskNoteModal()">&times;</button>
+            </div>
+            <div style="margin-bottom: 12px;">
+                <strong id="task-modal-title">Task Title</strong>
+            </div>
+            
+            <!-- Status Selection -->
+            <div style="margin-bottom: 16px;">
+                <label class="filter-label">Status:</label>
+                <select id="task-status-select" class="modal-select">
+                    <option value="programming">Programming</option>
+                    <option value="discussion">Discussion</option>
+                    <option value="pretest">PreTest</option>
+                    <option value="test">Test</option>
+                    <option value="live">Live</option>
+                </select>
+            </div>
+            
+            <!-- Notes -->
+            <div style="margin-bottom: 16px;">
+                <label class="filter-label">Notes:</label>
+                <textarea id="task-note-content" class="modal-textarea" placeholder="Add notes for this task..."></textarea>
+            </div>
+            
+            <!-- Issues Section -->
+            <div class="feedback-section">
+                <div class="feedback-header">
+                    <h4 style="color: #ef4444; font-size: 14px;">🚨 Issues</h4>
+                </div>
+                <div class="feedback-list" id="issues-list">
+                    <!-- Issues will be populated here -->
+                </div>
+                <div class="add-feedback">
+                    <input type="text" id="new-issue-input" class="feedback-input" placeholder="Add a new issue..." />
+                    <button class="add-feedback-btn" onclick="addIssue()">Add Issue</button>
+                </div>
+            </div>
+            
+            <!-- Appreciation Section -->
+            <div class="feedback-section">
+                <div class="feedback-header">
+                    <h4 style="color: #22c55e; font-size: 14px;">👏 Appreciation</h4>
+                </div>
+                <div class="feedback-list" id="appreciation-list">
+                    <!-- Appreciation will be populated here -->
+                </div>
+                <div class="add-feedback">
+                    <input type="text" id="new-appreciation-input" class="feedback-input" placeholder="Add appreciation..." />
+                    <button class="add-feedback-btn" onclick="addAppreciation()">Add Appreciation</button>
+                </div>
+            </div>
+            
+            <div class="modal-actions">
+                <button class="modal-btn cancel" onclick="closeTaskNoteModal()">Cancel</button>
+                <button class="modal-btn" onclick="saveTaskNote()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Modal -->
+    <div id="filterModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Filter Tasks</h3>
+                <button class="close-btn" onclick="closeFilterModal()">&times;</button>
+            </div>
+            
+            <div class="filter-grid">
+                <div class="filter-group">
+                    <label class="filter-label">Status:</label>
+                    <select id="filter-status" class="modal-select">
+                        <option value="">All Statuses</option>
+                        <option value="programming">Programming</option>
+                        <option value="discussion">Discussion</option>
+                        <option value="pretest">PreTest</option>
+                        <option value="test">Test</option>
+                        <option value="live">Live</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label class="filter-label">Person:</label>
+                    <select id="filter-person" class="modal-select">
+                        <option value="">All People</option>
+                        <!-- Will be populated with team members -->
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label class="filter-label">Date From:</label>
+                    <input type="date" id="filter-date-from" class="date-input" />
+                </div>
+                
+                <div class="filter-group">
+                    <label class="filter-label">Date To:</label>
+                    <input type="date" id="filter-date-to" class="date-input" />
+                </div>
+                
+                <div class="filter-group">
+                    <label class="filter-label">Feedback Type:</label>
+                    <select id="filter-feedback" class="modal-select">
+                        <option value="">All Tasks</option>
+                        <option value="issues">Tasks with Issues</option>
+                        <option value="appreciation">Tasks with Appreciation</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label class="filter-label">Min Issue Count:</label>
+                    <input type="number" id="filter-min-issues" class="modal-input" placeholder="e.g., 1" min="0" />
+                </div>
+            </div>
+            
+            <div class="modal-actions">
+                <button class="modal-btn cancel" onclick="clearFilters()">Clear Filters</button>
+                <button class="modal-btn cancel" onclick="closeFilterModal()">Cancel</button>
+                <button class="modal-btn" onclick="applyFilters()">Apply Filters</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Trash Instructions Modal -->
+    <div id="trashInstructionsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">🗑️ Open System Trash</h3>
+                <button class="close-btn" onclick="closeTrashInstructionsModal()">&times;</button>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <p style="color: #94a3b8; margin-bottom: 16px;">Choose your operating system to open trash:</p>
+                
+                <div style="background: rgba(71, 85, 105, 0.2); border-radius: 10px; padding: 16px; margin-bottom: 12px;">
+                    <h4 style="color: #f1f5f9; margin-bottom: 8px;">🍎 macOS</h4>
+                    <p style="color: #e2e8f0; font-size: 13px; margin-bottom: 8px;">Press: <code style="background: rgba(71, 85, 105, 0.5); padding: 2px 6px; border-radius: 4px;">Cmd + Shift + Delete</code></p>
+                    <p style="color: #e2e8f0; font-size: 13px;">Or click the <strong>Trash</strong> icon in your Dock</p>
+                </div>
+
+                <div style="background: rgba(71, 85, 105, 0.2); border-radius: 10px; padding: 16px; margin-bottom: 12px;">
+                    <h4 style="color: #f1f5f9; margin-bottom: 8px;">🪟 Windows</h4>
+                    <p style="color: #e2e8f0; font-size: 13px; margin-bottom: 8px;">Press: <code style="background: rgba(71, 85, 105, 0.5); padding: 2px 6px; border-radius: 4px;">Windows + R</code> then type: <code style="background: rgba(71, 85, 105, 0.5); padding: 2px 6px; border-radius: 4px;">shell:RecycleBinFolder</code></p>
+                    <p style="color: #e2e8f0; font-size: 13px;">Or double-click <strong>Recycle Bin</strong> on desktop</p>
+                </div>
+
+                <div style="background: rgba(71, 85, 105, 0.2); border-radius: 10px; padding: 16px;">
+                    <h4 style="color: #f1f5f9; margin-bottom: 8px;">🐧 Linux</h4>
+                    <p style="color: #e2e8f0; font-size: 13px;">Open your file manager and look for <strong>Trash</strong> or <strong>Rubbish Bin</strong></p>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn" onclick="closeTrashInstructionsModal()">Got it!</button>
+            </div>
+        </div>
+    </div>
+
+   
+    <script src="app.js"></script>
+</body>
+</html>

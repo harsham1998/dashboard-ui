@@ -1,0 +1,29 @@
+/* MINIMAL CSS - NO EFFECTS */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, sans-serif;
+    background: #1a1a1a;
+    color: #ffffff;
+    padding: 20px;
+}
+
+input, textarea, button, select {
+    background: #333;
+    color: #fff;
+    border: 1px solid #555;
+    padding: 8px;
+    margin: 4px;
+}
+
+.card {
+    background: #222;
+    border: 1px solid #444;
+    padding: 16px;
+    margin: 8px;
+    border-radius: 4px;
+}
