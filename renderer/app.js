@@ -1,4 +1,407 @@
 
+// Firebase database URL
+const FIREBASE_URL = 'https://dashboard-app-fcd42-default-rtdb.firebaseio.com';
+
+// Authentication System
+class AuthSystem {
+    constructor() {
+        this.currentUser = null;
+        this.init();
+    }
+
+    async init() {
+        // Check if user is already logged in
+        const savedUser = localStorage.getItem('dashboardUser');
+        if (savedUser) {
+            this.currentUser = JSON.parse(savedUser);
+            this.showDashboard();
+            // Load user data after showing dashboard
+            await this.loadUserData();
+        } else {
+            this.showAuthOverlay();
+        }
+    }
+
+    async loadUserData() {
+        try {
+            await loadDataFromStorage();
+            
+            // Ensure appData has the required structure
+            if (!appData || typeof appData !== 'object') {
+                appData = getDefaultAppData();
+            }
+            
+            // Ensure all required properties exist
+            if (!appData.tasks) appData.tasks = {};
+            if (!appData.quickLinks) appData.quickLinks = [];
+            if (!appData.creditCards) appData.creditCards = [];
+            if (!appData.transactions) appData.transactions = [];
+            if (!appData.importantFeed) appData.importantFeed = [];
+            if (!appData.quickNotes) appData.quickNotes = '';
+            
+            await initializeUI();
+        } catch (error) {
+            console.error('Error loading user data:', error);
+            // Ensure appData is initialized even if loading fails
+            appData = getDefaultAppData();
+        }
+    }
+
+    showAuthOverlay() {
+        document.getElementById('authOverlay').style.display = 'flex';
+        document.querySelector('.dashboard-container').style.display = 'none';
+        document.getElementById('userInfoBar').style.display = 'none';
+    }
+
+    showDashboard() {
+        document.getElementById('authOverlay').style.display = 'none';
+        document.querySelector('.dashboard-container').style.display = 'block';
+        document.getElementById('userInfoBar').style.display = 'flex';
+        document.querySelector('.dashboard-container').classList.add('logged-in');
+        
+        // Update user info
+        if (this.currentUser) {
+            document.getElementById('userName').textContent = this.currentUser.name;
+            document.getElementById('userAvatar').textContent = this.currentUser.name.charAt(0).toUpperCase();
+            
+            // Update profile info
+            updateProfileInfo();
+        }
+    }
+
+    async authenticateUser(email, password) {
+        try {
+            const response = await fetch(`${FIREBASE_URL}/users.json`);
+            const users = await response.json() || {};
+            
+            const userEmail = email.replace(/[.#$[\]]/g, '_');
+            const user = users[userEmail];
+
+            if (user && user.password === this.hashPassword(password)) {
+                // Update last login
+                user.lastLogin = new Date().toISOString();
+                await fetch(`${FIREBASE_URL}/users/${userEmail}.json`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(user)
+                });
+
+                return {
+                    name: user.name,
+                    email: user.email,
+                    userFile: `${userEmail}.json`
+                };
+            }
+        } catch (error) {
+            console.error('❌ Authentication error:', error);
+        }
+        return null;
+    }
+
+    hashPassword(password) {
+        // Simple hash function (use a proper hash in production)
+        let hash = 0;
+        for (let i = 0; i < password.length; i++) {
+            const char = password.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+        }
+        return hash.toString();
+    }
+
+    async createUserDataFile(userEmail) {
+        try {
+            const defaultData = {
+                tasks: {
+                    // Add a placeholder to prevent Firebase from removing empty object
+                    "_placeholder": []
+                },
+                quickNotes: '',
+                quickLinks: [
+                    { id: 1, name: 'Gmail', url: 'https://gmail.com' },
+                    { id: 2, name: 'GitHub', url: 'https://github.com' }
+                ],
+                importantFeed: [
+                    // Add a placeholder to prevent Firebase from removing empty array
+                    { _placeholder: true }
+                ],
+                creditCards: [
+                    // Add a placeholder to prevent Firebase from removing empty array
+                    { _placeholder: true }
+                ],
+                transactions: [
+                    // Add a placeholder to prevent Firebase from removing empty array
+                    { _placeholder: true }
+                ],
+                teamMembers: ['Harsha (Me)', 'Ujjawal', 'Arun', 'Sanskar', 'Thombre', 'Sakshi', 'Soumi', 'Ayush', 'Aditya', 'Sankalp'],
+                currentDate: new Date().toISOString().split('T')[0],
+                lastUpdated: new Date().toISOString()
+            };
+
+            const response = await fetch(`${FIREBASE_URL}/${userEmail}.json`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(defaultData)
+            });
+
+            if (response.ok) {
+                return true;
+            }
+        } catch (error) {
+            console.error('Error creating user data file:', error);
+        }
+        return false;
+    }
+
+    getUserFilePath() {
+        return this.currentUser ? this.currentUser.userFile : 'data.json';
+    }
+}
+
+// Initialize auth system after DOM is ready
+let authSystem;
+
+// Authentication Functions
+async function login() {
+    const email = document.getElementById('login-email').value;
+    const password = document.getElementById('login-password').value;
+    
+    if (!email || !password) {
+        showAuthMessage('Please fill in all fields', 'error');
+        return;
+    }
+
+    try {
+        const user = await authSystem.authenticateUser(email, password);
+        if (user) {
+            authSystem.currentUser = user;
+            localStorage.setItem('dashboardUser', JSON.stringify(user));
+            showAuthMessage('Login successful!', 'success');
+            
+            setTimeout(async () => {
+                authSystem.showDashboard();
+                // Load user data after login
+                await authSystem.loadUserData();
+            }, 1000);
+        } else {
+            showAuthMessage('Invalid email or password', 'error');
+        }
+    } catch (error) {
+        showAuthMessage('Login failed. Please try again.', 'error');
+    }
+}
+
+async function signup() {
+    const name = document.getElementById('signup-name').value;
+    const email = document.getElementById('signup-email').value;
+    const password = document.getElementById('signup-password').value;
+    const confirmPassword = document.getElementById('signup-confirm-password').value;
+    
+    if (!name || !email || !password || !confirmPassword) {
+        showAuthMessage('Please fill in all fields', 'error');
+        return;
+    }
+
+    if (password !== confirmPassword) {
+        showAuthMessage('Passwords do not match', 'error');
+        return;
+    }
+
+    if (password.length < 6) {
+        showAuthMessage('Password must be at least 6 characters', 'error');
+        return;
+    }
+
+    try {
+        // Check if user already exists
+        const response = await fetch(`${FIREBASE_URL}/users.json`);
+        const users = await response.json() || {};
+        const userEmail = email.replace(/[.#$[\]]/g, '_');
+        
+        if (users[userEmail]) {
+            showAuthMessage('User already exists', 'error');
+            return;
+        }
+
+        // Create new user
+        const userData = {
+            name: name,
+            email: email,
+            password: authSystem.hashPassword(password),
+            createdAt: new Date().toISOString(),
+            lastLogin: new Date().toISOString()
+        };
+
+        users[userEmail] = userData;
+        
+        const saveResponse = await fetch(`${FIREBASE_URL}/users.json`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(users)
+        });
+
+        if (saveResponse.ok) {
+            // Create user data file
+            await authSystem.createUserDataFile(userEmail);
+            
+            showAuthMessage('Account created successfully!', 'success');
+            setTimeout(() => {
+                showLogin();
+            }, 1500);
+        } else {
+            showAuthMessage('Failed to create account', 'error');
+        }
+    } catch (error) {
+        showAuthMessage('Signup failed. Please try again.', 'error');
+    }
+}
+
+function logout() {
+    authSystem.currentUser = null;
+    
+    // Clear all localStorage data
+    localStorage.removeItem('dashboardUser');
+    localStorage.clear();
+    
+    // Reset app data
+    appData = {
+        tasks: {},
+        quickNotes: '',
+        importantFeed: [],
+        quickLinks: [
+            { id: 1, name: 'Gmail', url: 'https://gmail.com' },
+            { id: 2, name: 'GitHub', url: 'https://github.com' }
+        ],
+        teamMembers: ['Harsha (Me)', 'Ujjawal', 'Arun', 'Sanskar', 'Thombre', 'Sakshi', 'Soumi', 'Ayush', 'Aditya', 'Sankalp']
+    };
+    
+    // Close any open dropdowns
+    closeProfileDropdown();
+    
+    authSystem.showAuthOverlay();
+    
+    // Clear form fields
+    document.getElementById('login-email').value = '';
+    document.getElementById('login-password').value = '';
+    showLogin();
+}
+
+function showLogin() {
+    document.getElementById('loginForm').style.display = 'block';
+    document.getElementById('signupForm').style.display = 'none';
+    document.getElementById('auth-message').style.display = 'none';
+}
+
+function showSignup() {
+    document.getElementById('loginForm').style.display = 'none';
+    document.getElementById('signupForm').style.display = 'block';
+    document.getElementById('auth-message').style.display = 'none';
+}
+
+function showAuthMessage(message, type) {
+    const messageEl = document.getElementById('auth-message');
+    messageEl.textContent = message;
+    messageEl.className = `auth-message ${type}`;
+    messageEl.style.display = 'block';
+}
+
+// Profile Functions
+function toggleProfileDropdown() {
+    const dropdown = document.querySelector('.profile-dropdown');
+    const content = document.getElementById('profile-dropdown-content');
+    
+    if (content.classList.contains('show')) {
+        closeProfileDropdown();
+    } else {
+        openProfileDropdown();
+    }
+}
+
+function openProfileDropdown() {
+    const dropdown = document.querySelector('.profile-dropdown');
+    const content = document.getElementById('profile-dropdown-content');
+    
+    dropdown.classList.add('active');
+    content.classList.add('show');
+    
+    // Close dropdown when clicking outside
+    setTimeout(() => {
+        document.addEventListener('click', handleOutsideClick);
+    }, 0);
+}
+
+function closeProfileDropdown() {
+    const dropdown = document.querySelector('.profile-dropdown');
+    const content = document.getElementById('profile-dropdown-content');
+    
+    dropdown.classList.remove('active');
+    content.classList.remove('show');
+    
+    document.removeEventListener('click', handleOutsideClick);
+}
+
+function handleOutsideClick(event) {
+    const profileDropdown = document.querySelector('.profile-dropdown');
+    if (!profileDropdown.contains(event.target)) {
+        closeProfileDropdown();
+    }
+}
+
+function openProfile() {
+    closeProfileDropdown();
+    
+    if (!authSystem.currentUser) {
+        return;
+    }
+    
+    const modal = document.getElementById('profileModal');
+    const user = authSystem.currentUser;
+    
+    // Update profile info
+    document.getElementById('profile-avatar-large').textContent = user.name.charAt(0).toUpperCase();
+    document.getElementById('profile-display-name').value = user.name;
+    document.getElementById('profile-display-email').value = user.email;
+    
+    // Format dates
+    const createdAt = new Date(user.createdAt || Date.now()).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    });
+    
+    const lastLogin = new Date(user.lastLogin || Date.now()).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+    
+    document.getElementById('profile-created-at').value = createdAt;
+    document.getElementById('profile-last-login').value = lastLogin;
+    
+    modal.style.display = 'block';
+}
+
+function closeProfileModal() {
+    document.getElementById('profileModal').style.display = 'none';
+}
+
+// Update profile info when user logs in
+function updateProfileInfo() {
+    if (authSystem.currentUser) {
+        const user = authSystem.currentUser;
+        document.getElementById('profile-name').textContent = user.name;
+        document.getElementById('profile-avatar').textContent = user.name.charAt(0).toUpperCase();
+    }
+}
+
+// Connect Email Function (placeholder)
+function connectEmail() {
+    // TODO: Implement email connection functionality
+    alert('Connect Email functionality will be implemented later!');
+}
+
 // Global variables
 let appData = {
     tasks: {},
@@ -61,7 +464,6 @@ const statusConfig = {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async function() {
-    console.log('🚀 Dashboard initializing...');
     
     // Set default motivational message first
     document.getElementById('motivation').textContent = '"Today is your opportunity to build the tomorrow you want."';
@@ -76,15 +478,17 @@ document.addEventListener('DOMContentLoaded', async function() {
     try {
         updateMotivationalMessage();
     } catch (error) {
-        console.log('Using default motivational message');
     }
     
-    // Load data first, then render UI
-    await loadDataFromStorage();
+    // Initialize authentication system
+    authSystem = new AuthSystem();
     
-    renderQuickLinks();
-    renderTasks();
-    renderImportantFeed();
+    // Only render UI if user is authenticated
+    if (authSystem.currentUser) {
+        renderQuickLinks();
+        renderTasks();
+        renderImportantFeed();
+    }
     initializeFilterModal();
     fetchWeather();
     
@@ -94,26 +498,15 @@ document.addEventListener('DOMContentLoaded', async function() {
         try {
             updateMotivationalMessage();
         } catch (error) {
-            console.log('Error updating motivational message, keeping current one');
         }
     }, 60 * 60 * 1000);
     setInterval(fetchWeather, 30 * 60 * 1000);
-    
-    // Auto-save disabled - only save on changes
-    // setInterval(async function() {
-    //     try {
-    //         await saveDataToStorage();
-    //     } catch (error) {
-    //         console.log('Auto-save error:', error);
-    //     }
-    // }, 10000);
     
     // Auto-refresh data from JSON file every 3 seconds
     setInterval(async function() {
         try {
             await refreshDataFromFile();
         } catch (error) {
-            console.log('Auto-refresh error:', error);
         }
     }, 3000);
     
@@ -122,17 +515,14 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (quickNotesElement) {
         // Add comprehensive paste event handling
         quickNotesElement.addEventListener('paste', (event) => {
-            console.log('📋 Paste event listener triggered');
             handleQuickNotesPaste(event);
         });
         
         // Add input event listener as backup
         quickNotesElement.addEventListener('input', (event) => {
-            console.log('📝 Input event listener triggered, inputType:', event.inputType);
             
             // Check if this is a paste operation
             if (event.inputType === 'insertFromPaste' || event.inputType === 'insertCompositionText') {
-                console.log('📋 Paste detected via input event');
                 handleQuickNotesPaste(event);
             } else {
                 saveNotes();
@@ -141,7 +531,6 @@ document.addEventListener('DOMContentLoaded', async function() {
         
         // Add change event listener for additional safety
         quickNotesElement.addEventListener('change', (event) => {
-            console.log('🔄 Change event listener triggered');
             saveNotes();
         });
         
@@ -149,7 +538,6 @@ document.addEventListener('DOMContentLoaded', async function() {
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
                 if (mutation.type === 'childList' || mutation.type === 'characterData') {
-                    console.log('📋 Mutation detected in quick notes');
                     saveNotes();
                 }
             });
@@ -161,10 +549,8 @@ document.addEventListener('DOMContentLoaded', async function() {
             subtree: true
         });
         
-        console.log('✅ Quick notes event listeners and observer added');
     }
     
-    console.log('✅ Dashboard fully initialized with JSON file storage');
 });
 
 // Clock and time functions
@@ -343,20 +729,16 @@ function saveNotes() {
     const quickNotesElement = document.getElementById('quick-notes');
     if (quickNotesElement) {
         appData.quickNotes = quickNotesElement.value;
-        console.log('📝 saveNotes() called, content length:', appData.quickNotes.length);
         
         clearTimeout(saveTimeout);
         saveTimeout = setTimeout(async () => {
-            console.log('📝 Saving quick notes to Firebase...', appData.quickNotes.substring(0, 50) + '...');
             await saveDataToStorage();
-            console.log('📝 Quick Notes saved to Firebase');
         }, 1000); // 1 second delay for quick notes
     }
 }
 
 // Handle paste events for quick notes
 function handleQuickNotesPaste(event) {
-    console.log('📋 Paste event detected in quick notes');
     
     // Set flag to prevent refresh interference
     isPasting = true;
@@ -367,13 +749,10 @@ function handleQuickNotesPaste(event) {
         if (quickNotesElement) {
             const newValue = quickNotesElement.value;
             appData.quickNotes = newValue;
-            console.log('📋 Quick notes updated after paste:', newValue.length, 'characters');
-            console.log('📋 Content preview:', newValue.substring(0, 100) + '...');
             
             // Save immediately without waiting for the timeout
             clearTimeout(saveTimeout);
             saveDataToStorage().then(() => {
-                console.log('📋 Paste content saved immediately to Firebase');
                 isPasting = false; // Clear flag after save
             });
         }
@@ -403,10 +782,14 @@ function showSaveStatus(status) {
 
 async function saveDataToStorage() {
     try {
-        console.log('💾 Saving data to Firebase, quickNotes length:', appData.quickNotes?.length || 0);
+        // Check if user is authenticated
+        if (!authSystem || !authSystem.currentUser) {
+            return;
+        }
         
         // Save data to Firebase API
-        const response = await fetch('https://dashboard-app-fcd42-default-rtdb.firebaseio.com/data.json', {
+        const userFile = authSystem.getUserFilePath();
+        const response = await fetch(`${FIREBASE_URL}/${userFile}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json'
@@ -414,13 +797,11 @@ async function saveDataToStorage() {
             body: JSON.stringify(appData)
         });
         
-        if (response.ok) {
-            console.log('✅ Data saved to Firebase API');
-        } else {
-            console.error('❌ Failed to save data to Firebase:', response.status);
+        if (!response.ok) {
+            console.error('Failed to save data to Firebase:', response.status);
         }
     } catch (error) {
-        console.error('❌ Unable to save data to Firebase API:', error);
+        console.error('Unable to save data to Firebase API:', error);
     }
 }
 
@@ -431,22 +812,71 @@ let isPasting = false; // Flag to prevent refresh during paste
 // Default app data structure
 function getDefaultAppData() {
     return {
-        tasks: {},
+        tasks: {
+            // Add a placeholder to prevent Firebase from removing empty object
+            "_placeholder": []
+        },
         quickNotes: '',
-        importantFeed: [],
+        importantFeed: [
+            // Add a placeholder to prevent Firebase from removing empty array
+            { _placeholder: true }
+        ],
         quickLinks: [
             { id: 1, name: 'Gmail', url: 'https://gmail.com' },
             { id: 2, name: 'GitHub', url: 'https://github.com' }
         ],
         teamMembers: ['Harsha (Me)', 'Ujjawal', 'Arun', 'Sanskar', 'Thombre', 'Sakshi', 'Soumi', 'Ayush', 'Aditya', 'Sankalp'],
-        transactions: []
+        transactions: [
+            // Add a placeholder to prevent Firebase from removing empty array
+            { _placeholder: true }
+        ],
+        creditCards: [
+            // Add a placeholder to prevent Firebase from removing empty array
+            { _placeholder: true }
+        ],
+        currentDate: new Date().toISOString().split('T')[0],
+        lastUpdated: new Date().toISOString()
     };
+}
+
+// Clean up placeholder data and ensure proper structure
+function cleanupAppData() {
+    // Initialize missing properties
+    if (!appData.tasks) appData.tasks = {};
+    if (!appData.quickLinks) appData.quickLinks = [];
+    if (!appData.creditCards) appData.creditCards = [];
+    if (!appData.transactions) appData.transactions = [];
+    if (!appData.importantFeed) appData.importantFeed = [];
+    
+    // Remove placeholder from tasks
+    if (appData.tasks._placeholder) {
+        delete appData.tasks._placeholder;
+    }
+    
+    // Remove placeholders from arrays
+    if (Array.isArray(appData.importantFeed)) {
+        appData.importantFeed = appData.importantFeed.filter(item => !item._placeholder);
+    }
+    
+    if (Array.isArray(appData.creditCards)) {
+        appData.creditCards = appData.creditCards.filter(item => !item._placeholder);
+    }
+    
+    if (Array.isArray(appData.transactions)) {
+        appData.transactions = appData.transactions.filter(item => !item._placeholder);
+    }
 }
 
 async function refreshDataFromFile() {
     try {
+        // Check if user is authenticated
+        if (!authSystem || !authSystem.currentUser) {
+            return;
+        }
+        
         // Refresh data from Firebase API
-        const response = await fetch('https://dashboard-app-fcd42-default-rtdb.firebaseio.com/data.json');
+        const userFile = authSystem.getUserFilePath();
+        const response = await fetch(`${FIREBASE_URL}/${userFile}`);
         
         if (response.ok) {
             const firebaseData = await response.json();
@@ -471,12 +901,10 @@ async function refreshDataFromFile() {
                 
                 renderTasks();
                 updateAllDisplays();
-                console.log('🔄 Data refreshed from Firebase API' + ((isTypingNotes || isPasting) ? ' (preserving quick notes)' : ''));
             }
         }
     } catch (error) {
         // Silently fail during auto-refresh
-        console.log('❌ Auto-refresh from Firebase failed:', error);
     }
 }
 
@@ -499,8 +927,14 @@ function updateAllDisplays() {
 
 async function loadDataFromStorage() {
     try {
+        // Check if user is authenticated
+        if (!authSystem || !authSystem.currentUser) {
+            return;
+        }
+        
         // Load data from Firebase API instead of local JSON
-        const response = await fetch('https://dashboard-app-fcd42-default-rtdb.firebaseio.com/data.json');
+        const userFile = authSystem.getUserFilePath();
+        const response = await fetch(`${FIREBASE_URL}/${userFile}`);
         
         if (response.ok) {
             const data = await response.json();
@@ -510,27 +944,36 @@ async function loadDataFromStorage() {
                     ...getDefaultAppData(),
                     ...data
                 };
+                
+                // Clean up placeholders and ensure proper structure
+                cleanupAppData();
+                
+                // If the loaded data was missing critical properties, save the updated structure
+                if (!data.tasks || !data.quickLinks) {
+                    await saveDataToStorage();
+                }
+                
                 updateUIFromLoadedData();
-                console.log('✅ Data loaded from Firebase API');
-                console.log('📋 Loaded tasks:', Object.keys(appData.tasks || {}).length, 'dates');
-                console.log('💳 Loaded transactions:', (appData.transactions || []).length);
-                console.log('🔗 Loaded quick links:', (appData.quickLinks || []).length);
             } else {
-                console.log('ℹ️ No data found in Firebase, starting fresh');
                 appData = getDefaultAppData();
+                cleanupAppData();
             }
-        } else {
-            console.log('❌ Failed to load data from Firebase:', response.status);
+        } else if (response.status === 404) {
             appData = getDefaultAppData();
+            cleanupAppData();
+            // Create the user data file with default data
+            await authSystem.createUserDataFile(authSystem.currentUser.email.replace(/[.#$[\]]/g, '_'));
+        } else {
+            appData = getDefaultAppData();
+            cleanupAppData();
         }
     } catch (error) {
-        console.log('❌ Error loading data from Firebase API:', error);
         appData = getDefaultAppData();
+        cleanupAppData();
     }
 }
 
 function updateUIFromLoadedData() {
-    console.log('🔄 Updating UI from loaded data...');
     
     // Update quick notes only if user is not typing or pasting
     const quickNotesElement = document.getElementById('quick-notes');
@@ -539,25 +982,18 @@ function updateUIFromLoadedData() {
         const isFocused = document.activeElement === quickNotesElement || quickNotesElement.matches(':focus');
         if (!isFocused && !isPasting) {
             quickNotesElement.value = appData.quickNotes || '';
-            console.log('📝 Notes loaded');
         } else {
-            console.log('📝 Notes load skipped (user typing or pasting)');
         }
     }
     
     renderQuickLinks();
-    console.log('🔗 Links rendered:', (appData.quickLinks || []).length);
     
     renderTransactions();
-    console.log('💳 Transactions rendered:', (appData.transactions || []).length);
     
     renderTasks();
-    console.log('📋 Tasks rendered for current date');
     
     renderImportantFeed();
-    console.log('⭐ Important feed rendered:', (appData.importantFeed || []).length);
     
-    console.log('✅ UI update completed');
 }
 
 // Task functions
@@ -566,10 +1002,15 @@ function getDateKey(date) {
 }
 
 function addTask() {
+    
     const input = document.getElementById('new-task-input');
     const taskText = input.value.trim();
+    
     if (taskText) {
         const dateKey = getDateKey(todoViewDate);
+        
+        // Ensure appData.tasks exists
+        if (!appData.tasks) appData.tasks = {};
         if (!appData.tasks[dateKey]) appData.tasks[dateKey] = [];
         
         const newTask = {
@@ -585,11 +1026,9 @@ function addTask() {
         };
         
         appData.tasks[dateKey].push(newTask);
+        
         input.value = '';
         
-        console.log('➕ Task added:', taskText);
-        console.log('📅 Date key:', dateKey);
-        console.log('📋 Total tasks for date:', appData.tasks[dateKey].length);
         
         renderTasks();
         saveDataToStorage();
@@ -601,7 +1040,6 @@ function toggleTask(dateKey, taskId) {
         const task = appData.tasks[dateKey].find(t => t.id === taskId);
         if (task) {
             task.completed = !task.completed;
-            console.log('✅ Task toggled:', task.text, 'completed:', task.completed);
             renderTasks();
             saveDataToStorage();
         }
@@ -613,9 +1051,7 @@ function deleteTask(dateKey, taskId) {
         if (appData.tasks[dateKey]) {
             const taskIndex = appData.tasks[dateKey].findIndex(t => t.id === taskId);
             if (taskIndex !== -1) {
-                const deletedTask = appData.tasks[dateKey][taskIndex];
                 appData.tasks[dateKey].splice(taskIndex, 1);
-                console.log('🗑️ Task deleted:', deletedTask.text);
                 renderTasks();
                 saveDataToStorage();
             }
@@ -628,7 +1064,6 @@ function assignTask(dateKey, taskId, assignee) {
         const task = appData.tasks[dateKey].find(t => t.id === taskId);
         if (task) {
             task.assignee = assignee;
-            console.log('👤 Task assigned:', task.text, 'to:', assignee);
             renderTasks();
             saveDataToStorage();
         }
@@ -640,7 +1075,6 @@ function changeTaskStatus(dateKey, taskId, status) {
         const task = appData.tasks[dateKey].find(t => t.id === taskId);
         if (task) {
             task.status = status;
-            console.log('📊 Task status changed:', task.text, 'to:', status);
             renderTasks();
             saveDataToStorage();
         }
@@ -648,7 +1082,6 @@ function changeTaskStatus(dateKey, taskId, status) {
 }
 
 function openTaskNote(dateKey, taskId) {
-    console.log('📝 Opening task note for:', dateKey, taskId);
     if (appData.tasks[dateKey]) {
         const task = appData.tasks[dateKey].find(t => t.id === taskId);
         if (task) {
@@ -661,12 +1094,9 @@ function openTaskNote(dateKey, taskId) {
             renderModalFeedback(task);
             
             document.getElementById('taskNoteModal').style.display = 'block';
-            console.log('✅ Task note modal opened for:', task.text);
         } else {
-            console.log('❌ Task not found:', taskId);
         }
     } else {
-        console.log('❌ No tasks found for date:', dateKey);
     }
 }
 
@@ -702,7 +1132,6 @@ function addIssue() {
             input.value = '';
             renderModalFeedback(task);
             saveDataToStorage();
-            console.log('🚨 Issue added:', issueText);
         }
     }
 }
@@ -719,7 +1148,6 @@ function addAppreciation() {
             input.value = '';
             renderModalFeedback(task);
             saveDataToStorage();
-            console.log('👏 Appreciation added:', appreciationText);
         }
     }
 }
@@ -732,7 +1160,6 @@ function removeIssue(index) {
             task.issues.splice(index, 1);
             renderModalFeedback(task);
             saveDataToStorage();
-            console.log('🗑️ Issue removed at index:', index);
         }
     }
 }
@@ -745,7 +1172,6 @@ function removeAppreciation(index) {
             task.appreciation.splice(index, 1);
             renderModalFeedback(task);
             saveDataToStorage();
-            console.log('🗑️ Appreciation removed at index:', index);
         }
     }
 }
@@ -758,7 +1184,6 @@ function closeTaskNoteModal() {
     document.getElementById('new-issue-input').value = '';
     document.getElementById('new-appreciation-input').value = '';
     
-    console.log('🔐 Task note modal closed');
 }
 
 function saveTaskNote() {
@@ -769,7 +1194,6 @@ function saveTaskNote() {
             task.note = document.getElementById('task-note-content').value;
             task.status = document.getElementById('task-status-select').value;
             task.noteUpdatedAt = new Date().toISOString();
-            console.log('📝 Task details saved:', task.text);
             renderTasks();
             saveDataToStorage();
         }
@@ -901,8 +1325,6 @@ function renderTasks() {
         currentTasks = applyTaskFilters(currentTasks, dateKey);
     }
     
-    console.log('📅 Rendering tasks for date:', dateKey);
-    console.log('📋 Tasks for this date:', currentTasks.length);
     
     if (currentTasks.length === 0) {
         const isFiltered = Object.keys(activeFilters).length > 0;
@@ -914,7 +1336,6 @@ function renderTasks() {
             </div>
         `;
         document.getElementById('progress-section').style.display = 'none';
-        console.log('📝 Empty state displayed');
     } else {
         container.innerHTML = currentTasks.map(task => `
             <div class="task-item" draggable="true" ondragstart="dragTask(event, '${dateKey}', ${task.id})">
@@ -962,7 +1383,6 @@ function renderTasks() {
         document.getElementById('progress-fill').style.width = `${percentage}%`;
         document.getElementById('progress-section').style.display = 'block';
         
-        console.log('✅ Tasks rendered successfully:', total, 'tasks,', completed, 'completed');
     }
 }
 
@@ -1039,7 +1459,6 @@ function applyFilters() {
     
     renderTasks();
     closeFilterModal();
-    console.log('🔍 Filters applied:', activeFilters);
 }
 
 function clearFilters() {
@@ -1059,10 +1478,9 @@ function clearFilters() {
     filterBtn.innerHTML = '<span>🔍</span>Filter';
     
     renderTasks();
-    console.log('🔍 Filters cleared');
 }
 
-function applyTaskFilters(tasks, currentDateKey) {
+function applyTaskFilters(tasks) {
     let filteredTasks = [];
     
     // If we have date range filters, search across all dates
@@ -1148,7 +1566,6 @@ function openInChrome(url) {
             window.open(url, '_blank', 'noopener,noreferrer');
         }
     } catch (error) {
-        console.log('Error opening link:', error);
         // Last resort fallback
         window.open(url, '_blank', 'noopener,noreferrer');
     }
@@ -1297,13 +1714,179 @@ function markTransactionAsRead() {
         saveDataToStorage();
         closeTransactionModal();
         renderTransactions();
-        console.log('📖 Transaction marked as read:', transaction.id);
     }
 }
 
 function closeTransactionModal() {
     document.getElementById('transactionModal').style.display = 'none';
     currentTransactionId = null;
+}
+
+// Credit Card Management
+function simpleEncrypt(text) {
+    // Simple Base64 + Caesar cipher for demo purposes
+    // In production, use proper encryption libraries
+    const base64 = btoa(text);
+    let encrypted = '';
+    for (let i = 0; i < base64.length; i++) {
+        encrypted += String.fromCharCode(base64.charCodeAt(i) + 3);
+    }
+    return btoa(encrypted);
+}
+
+function simpleDecrypt(encryptedText) {
+    try {
+        const decoded = atob(encryptedText);
+        let decrypted = '';
+        for (let i = 0; i < decoded.length; i++) {
+            decrypted += String.fromCharCode(decoded.charCodeAt(i) - 3);
+        }
+        return atob(decrypted);
+    } catch (error) {
+        console.error('Decryption error:', error);
+        return 'Error decrypting';
+    }
+}
+
+function maskCardNumber(cardNumber) {
+    const cleaned = cardNumber.replace(/\s/g, '');
+    if (cleaned.length < 4) return cardNumber;
+    const lastFour = cleaned.slice(-4);
+    const masked = '**** **** **** ' + lastFour;
+    return masked;
+}
+
+function formatCardNumber(value) {
+    // Remove all non-digits
+    const cleaned = value.replace(/\D/g, '');
+    // Add spaces every 4 digits
+    const formatted = cleaned.replace(/(\d{4})(?=\d)/g, '$1 ');
+    return formatted;
+}
+
+function formatExpiry(value) {
+    const cleaned = value.replace(/\D/g, '');
+    if (cleaned.length >= 2) {
+        return cleaned.substring(0, 2) + '/' + cleaned.substring(2, 4);
+    }
+    return cleaned;
+}
+
+function showCreditCards() {
+    document.getElementById('creditCardsModal').style.display = 'block';
+    renderCreditCards();
+}
+
+function renderCreditCards() {
+    const container = document.getElementById('credit-cards-list');
+    const creditCards = appData.creditCards || [];
+    
+    if (creditCards.length === 0) {
+        container.innerHTML = '<div style="text-align: center; color: rgba(255, 255, 255, 0.5); padding: 20px;">No saved credit cards</div>';
+        return;
+    }
+    
+    container.innerHTML = creditCards.map(card => {
+        const cardNumber = simpleDecrypt(card.encryptedNumber);
+        const maskedNumber = maskCardNumber(cardNumber);
+        
+        return `
+            <div class="credit-card-item">
+                <div class="card-info">
+                    <div class="card-name">${card.name}</div>
+                    <div class="card-number">${maskedNumber}</div>
+                </div>
+                <div class="card-actions">
+                    <button class="card-action-btn" onclick="showCardDetails(${card.id})">View</button>
+                    <button class="card-action-btn delete" onclick="deleteCard(${card.id})">Delete</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function showAddCardModal() {
+    document.getElementById('addCardModal').style.display = 'block';
+    // Clear form
+    document.getElementById('card-name').value = '';
+    document.getElementById('card-number').value = '';
+    document.getElementById('card-expiry').value = '';
+    document.getElementById('card-cvv').value = '';
+}
+
+function saveNewCard() {
+    const name = document.getElementById('card-name').value.trim();
+    const number = document.getElementById('card-number').value.replace(/\s/g, '');
+    const expiry = document.getElementById('card-expiry').value;
+    const cvv = document.getElementById('card-cvv').value;
+    
+    if (!name || !number || !expiry || !cvv) {
+        alert('Please fill all fields');
+        return;
+    }
+    
+    if (number.length < 13 || number.length > 19) {
+        alert('Please enter a valid card number');
+        return;
+    }
+    
+    if (!/^\d{2}\/\d{2}$/.test(expiry)) {
+        alert('Please enter expiry in MM/YY format');
+        return;
+    }
+    
+    if (cvv.length < 3 || cvv.length > 4) {
+        alert('Please enter a valid CVV');
+        return;
+    }
+    
+    const newCard = {
+        id: Date.now(),
+        name: name,
+        encryptedNumber: simpleEncrypt(number),
+        encryptedExpiry: simpleEncrypt(expiry),
+        encryptedCVV: simpleEncrypt(cvv),
+        addedDate: new Date().toISOString()
+    };
+    
+    if (!appData.creditCards) {
+        appData.creditCards = [];
+    }
+    
+    appData.creditCards.push(newCard);
+    saveDataToStorage();
+    closeAddCardModal();
+    renderCreditCards();
+}
+
+function showCardDetails(cardId) {
+    const card = appData.creditCards.find(c => c.id === cardId);
+    if (!card) return;
+    
+    const cardNumber = simpleDecrypt(card.encryptedNumber);
+    const expiry = simpleDecrypt(card.encryptedExpiry);
+    const cvv = simpleDecrypt(card.encryptedCVV);
+    
+    alert(`Card Details:\n\nName: ${card.name}\nNumber: ${formatCardNumber(cardNumber)}\nExpiry: ${expiry}\nCVV: ${cvv}\n\nAdded: ${new Date(card.addedDate).toLocaleDateString()}`);
+}
+
+function deleteCard(cardId) {
+    const card = appData.creditCards.find(c => c.id === cardId);
+    if (!card) return;
+    
+    if (confirm(`Are you sure you want to delete "${card.name}"?`)) {
+        appData.creditCards = appData.creditCards.filter(c => c.id !== cardId);
+        saveDataToStorage();
+        renderCreditCards();
+    }
+}
+
+function closeCreditCardsModal() {
+    document.getElementById('creditCardsModal').style.display = 'none';
+}
+
+function closeAddCardModal() {
+    document.getElementById('addCardModal').style.display = 'none';
 }
 
 function addQuickLink() {
@@ -1327,6 +1910,9 @@ function saveLinkModal() {
     const url = document.getElementById('link-url').value.trim();
     
     if (name && url) {
+        // Ensure appData.quickLinks exists
+        if (!appData.quickLinks) appData.quickLinks = [];
+        
         appData.quickLinks.push({
             id: Date.now(),
             name: name,
@@ -1394,8 +1980,15 @@ function navigateToImportantTask(originalTaskId, originalDate) {
             });
         }, 100);
         
-        console.log('📍 Navigated to important task:', originalTaskId, 'on date:', originalDate);
     }
+}
+
+// Initialize UI after authentication
+async function initializeUI() {
+    renderQuickLinks();
+    renderTasks();
+    renderImportantFeed();
+    initializeFilterModal();
 }
 
 // Drag and Drop for Important Feed
@@ -1442,13 +2035,10 @@ function dropToImportant(event) {
                 });
                 renderImportantFeed();
                 saveDataToStorage();
-                console.log('⭐ Task added to Important Feed:', data.task.text);
             } else {
-                console.log('ℹ️ Task already exists in Important Feed');
             }
         }
     } catch (error) {
-        console.log('Drop error:', error);
     }
 }
 
@@ -1458,9 +2048,7 @@ async function openSystemTrash() {
         if (window.electronAPI?.shell?.openTrash) {
             const success = await window.electronAPI.shell.openTrash();
             if (success) {
-                console.log('✅ System trash opened successfully');
             } else {
-                console.log('❌ Failed to open system trash');
                 // Fallback to instructions modal
                 document.getElementById('trashInstructionsModal').style.display = 'block';
             }
@@ -1485,12 +2073,9 @@ async function openApp(appName) {
         if (window.electronAPI?.shell?.openApp) {
             const success = await window.electronAPI.shell.openApp(appName);
             if (success) {
-                console.log(`✅ ${appName} opened successfully`);
             } else {
-                console.log(`❌ Failed to open ${appName}`);
             }
         } else {
-            console.log(`🌐 Cannot open ${appName} in browser mode`);
         }
     } catch (error) {
         console.error(`Error opening ${appName}:`, error);
@@ -1549,7 +2134,7 @@ function importData(event) {
 
 // Close modals and search when clicking outside
 window.onclick = function(event) {
-    const modals = ['linkModal', 'taskNoteModal', 'filterModal', 'trashInstructionsModal', 'transactionModal'];
+    const modals = ['linkModal', 'taskNoteModal', 'filterModal', 'trashInstructionsModal', 'transactionModal', 'creditCardsModal', 'addCardModal', 'profileModal'];
     modals.forEach(modalId => {
         const modal = document.getElementById(modalId);
         if (event.target === modal) {
@@ -1608,13 +2193,16 @@ document.addEventListener('DOMContentLoaded', function() {
 document.addEventListener('keydown', function(event) {
     if (event.key === 'Escape') {
         // Close any open modals
-        const modals = ['linkModal', 'taskNoteModal', 'filterModal', 'trashInstructionsModal'];
+        const modals = ['linkModal', 'taskNoteModal', 'filterModal', 'trashInstructionsModal', 'profileModal'];
         modals.forEach(modalId => {
             const modal = document.getElementById(modalId);
             if (modal.style.display === 'block') {
                 modal.style.display = 'none';
             }
         });
+        
+        // Close profile dropdown
+        closeProfileDropdown();
         
         // Close search results
         const searchResults = document.getElementById('search-results');
@@ -1675,10 +2263,8 @@ document.addEventListener('keydown', function(event) {
 });
 
 
-console.log('📱 Enhanced Dashboard Script Loaded Successfully');
-console.log('💾 Storage: JSON file (persists after system shutdown)');
-console.log('🔧 New Features: Task status, Issues/Appreciation tracking, Advanced filtering');
-console.log('⌨️ Keyboard shortcuts: Esc (clear), Ctrl+Enter (add task), Ctrl+F (search), Ctrl+Shift+F (filter)');
+
+// Test if functions are defined
 
 // Dashboard Application Logic for Electron
 class DashboardApp {
@@ -1687,17 +2273,24 @@ class DashboardApp {
     }
 
     init() {
-        console.log('Dashboard initializing...');
         this.checkElectronAPI();
         this.setupSystemIntegrations();
+        
+        // Only load data if user is authenticated
+        if (authSystem.currentUser) {
+            this.loadData();
+        }
+    }
+
+    async loadData() {
+        await loadDataFromStorage();
+        await initializeUI();
     }
 
     checkElectronAPI() {
         if (window.electronAPI) {
-            console.log('Electron API available');
             this.showSystemStatus('Electron API Ready', 'ready');
         } else {
-            console.log('Running in browser mode');
             this.showSystemStatus('Browser Mode', 'browser');
         }
     }
@@ -1707,17 +2300,13 @@ class DashboardApp {
         
         // Setup Siri integration
         if (window.electronAPI.siri) {
-            console.log('🎤 Setting up Siri integration...');
             
             // Register Siri shortcuts
             window.electronAPI.siri.registerShortcuts()
                 .then(success => {
                     if (success) {
-                        console.log('✅ Siri shortcuts registered successfully');
                         this.showSystemStatus('Siri Ready', 'ready');
-                        this.showSiriSetupInstructions();
                     } else {
-                        console.log('❌ Failed to register Siri shortcuts');
                         this.showSystemStatus('Siri Unavailable', 'error');
                     }
                 })
@@ -1727,116 +2316,20 @@ class DashboardApp {
                 });
             
             // Listen for Siri commands
-            window.electronAPI.siri.onCommand((event, data) => {
-                console.log('🎤 Siri command received:', data);
+            window.electronAPI.siri.onCommand((_event, data) => {
                 this.handleSiriCommand(data);
             });
         }
         
-        // HealthKit integration removed
     }
     
     showSiriSetupInstructions() {
-        // Check if instructions have been shown before
-        const hasShownInstructions = localStorage.getItem('siri-setup-shown');
-        if (hasShownInstructions) return;
-        
-        setTimeout(() => {
-            const instructionModal = document.createElement('div');
-            instructionModal.style.cssText = `
-                position: fixed;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                background: rgba(0, 0, 0, 0.7);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                z-index: 10000;
-                backdrop-filter: blur(4px);
-            `;
-            
-            instructionModal.innerHTML = `
-                <div style="
-                    background: rgba(15, 23, 42, 0.95);
-                    border: 1px solid rgba(71, 85, 105, 0.3);
-                    border-radius: 16px;
-                    padding: 32px;
-                    max-width: 600px;
-                    width: 90%;
-                    max-height: 80vh;
-                    overflow-y: auto;
-                    color: #e2e8f0;
-                ">
-                    <h2 style="color: #f1f5f9; margin-bottom: 20px; font-size: 24px;">🎤 Set up Siri Integration</h2>
-                    
-                    <div style="margin-bottom: 24px;">
-                        <h3 style="color: #3b82f6; margin-bottom: 12px;">Step 1: Create Siri Shortcuts</h3>
-                        <ol style="margin-left: 20px; line-height: 1.6;">
-                            <li>Open the <strong>Shortcuts</strong> app on your Mac</li>
-                            <li>Click the <strong>+</strong> button to create a new shortcut</li>
-                            <li>Search for and add the <strong>"Open URL"</strong> action</li>
-                            <li>Set the URL to: <code style="background: rgba(71, 85, 105, 0.3); padding: 2px 6px; border-radius: 4px;">dashboard-electron://add-task?text={{Ask for Input}}</code></li>
-                            <li>Name your shortcut: <strong>"Add Task to Dashboard"</strong></li>
-                            <li>Click <strong>"Add to Siri"</strong> and set the phrase: <strong>"Add task to dashboard"</strong></li>
-                        </ol>
-                    </div>
-                    
-                    <div style="margin-bottom: 24px;">
-                        <h3 style="color: #22c55e; margin-bottom: 12px;">Step 2: Test the Integration</h3>
-                        <p style="margin-bottom: 8px;">Once set up, you can say:</p>
-                        <ul style="margin-left: 20px; line-height: 1.6;">
-                            <li><strong>"Hey Siri, add task to dashboard"</strong> - then speak your task</li>
-                            <li>The app will open and add your task automatically</li>
-                        </ul>
-                    </div>
-                    
-                    <div style="margin-bottom: 24px;">
-                        <h3 style="color: #fbbf24; margin-bottom: 12px;">Additional URLs:</h3>
-                        <ul style="margin-left: 20px; line-height: 1.6; font-size: 14px;">
-                            <li>Show tasks: <code style="background: rgba(71, 85, 105, 0.3); padding: 2px 6px; border-radius: 4px;">dashboard-electron://show-tasks</code></li>
-                            <li>Complete task: <code style="background: rgba(71, 85, 105, 0.3); padding: 2px 6px; border-radius: 4px;">dashboard-electron://complete-task?text={{Ask for Input}}</code></li>
-                        </ul>
-                    </div>
-                    
-                    <div style="text-align: center;">
-                        <button onclick="this.parentElement.parentElement.parentElement.remove(); localStorage.setItem('siri-setup-shown', 'true');" style="
-                            background: #3b82f6;
-                            color: white;
-                            border: none;
-                            padding: 12px 24px;
-                            border-radius: 8px;
-                            font-size: 16px;
-                            cursor: pointer;
-                            margin-right: 12px;
-                        ">Got it!</button>
-                        <button onclick="this.parentElement.parentElement.parentElement.remove();" style="
-                            background: rgba(71, 85, 105, 0.4);
-                            color: #e2e8f0;
-                            border: 1px solid rgba(71, 85, 105, 0.4);
-                            padding: 12px 24px;
-                            border-radius: 8px;
-                            font-size: 16px;
-                            cursor: pointer;
-                        ">Remind me later</button>
-                    </div>
-                </div>
-            `;
-            
-            document.body.appendChild(instructionModal);
-        }, 3000);
+        return;
     }
 
     handleSiriCommand(data) {
-        console.log('🎤 Received Siri command data:', data);
+        const { action, text } = data;
         
-        const { action, text, command } = data;
-        
-        console.log('🎤 Processing Siri command:');
-        console.log('  - Action:', action);
-        console.log('  - Text:', text);
-        console.log('  - Command:', command);
         
         // Handle different action formats
         let normalizedAction = action;
@@ -1848,30 +2341,24 @@ class DashboardApp {
             normalizedAction = 'complete-task';
         }
         
-        console.log('🎤 Normalized action:', normalizedAction);
         
         switch (normalizedAction) {
             case 'add-task':
-                console.log('✅ Executing add-task with text:', text);
                 this.addTaskFromSiri(text);
                 this.showSiriNotification(`Added task: "${text || 'New task'}"`);
                 break;
             
             case 'show-tasks':
-                console.log('✅ Executing show-tasks');
                 this.showTasksFromSiri();
                 this.showSiriNotification('Showing your tasks');
                 break;
             
             case 'complete-task':
-                console.log('✅ Executing complete-task with text:', text);
                 this.completeTaskFromSiri(text);
                 this.showSiriNotification(`Completed task: "${text}"`);
                 break;
             
             default:
-                console.log('❌ Unknown Siri command:', normalizedAction);
-                console.log('Available actions: add-task, show-tasks, complete-task');
                 this.showSiriNotification(`Sorry, I didn't understand the command: "${normalizedAction}"`);
         }
     }
@@ -1881,18 +2368,13 @@ class DashboardApp {
             taskText = 'New task from Siri';
         }
         
-        console.log('🔍 Looking for input element...');
         const input = document.getElementById('new-task-input');
-        console.log('🔍 Input element found:', !!input);
         
         if (input) {
-            console.log('✏️ Setting input value to:', taskText);
             input.value = taskText;
             
-            console.log('📝 Calling addTask function...');
             try {
                 addTask(); // Call the existing addTask function
-                console.log('✅ addTask function completed');
             } catch (error) {
                 console.error('❌ Error calling addTask:', error);
             }
@@ -1905,11 +2387,9 @@ class DashboardApp {
             this.addTaskDirectly(taskText);
         }
         
-        console.log('✅ Task added from Siri:', taskText);
     }
     
     addTaskDirectly(taskText) {
-        console.log('🚀 Adding task directly:', taskText);
         const today = new Date().toISOString().split('T')[0];
         
         if (!appData.tasks[today]) {
@@ -1934,7 +2414,6 @@ class DashboardApp {
         saveDataToStorage();
         renderTasks();
         
-        console.log('✅ Task added directly to data:', newTask);
     }
     
     showTasksFromSiri() {
@@ -1953,7 +2432,6 @@ class DashboardApp {
             }, 2000);
         });
         
-        console.log('📋 Showing tasks from Siri');
     }
     
     completeTaskFromSiri(taskText) {
@@ -1973,10 +2451,8 @@ class DashboardApp {
         });
         
         if (!foundTask) {
-            console.log('Task not found:', taskText);
             this.showSiriNotification(`Task "${taskText}" not found`);
         } else {
-            console.log('✅ Task completed from Siri:', taskText);
         }
     }
     
@@ -2009,10 +2485,8 @@ class DashboardApp {
             window.electronAPI.notifications.show('Siri Command', message);
         }
         
-        console.log('🎤 Siri notification:', message);
     }
 
-    // HealthKit methods removed
 
     showNotification(message, type = 'info') {
         if (window.electronAPI?.notifications) {
@@ -2110,6 +2584,31 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.forEach(addPasteSupport);
     });
     
+    // Add input formatting for credit card fields
+    const formatCardNumber = (input) => {
+        input.addEventListener('input', (e) => {
+            let value = e.target.value.replace(/\s/g, '').replace(/[^0-9]/gi, '');
+            let formattedValue = '';
+            for (let i = 0; i < value.length; i++) {
+                if (i > 0 && i % 4 === 0) {
+                    formattedValue += ' ';
+                }
+                formattedValue += value[i];
+            }
+            e.target.value = formattedValue;
+        });
+    };
+    
+    const formatExpiryDate = (input) => {
+        input.addEventListener('input', (e) => {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.length >= 2) {
+                value = value.substring(0, 2) + '/' + value.substring(2, 4);
+            }
+            e.target.value = value;
+        });
+    };
+    
     // Also add paste support to dynamically created inputs
     const observer = new MutationObserver((mutations) => {
         mutations.forEach((mutation) => {
@@ -2118,11 +2617,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Check if the node itself is an input/textarea
                     if (node.tagName === 'INPUT' || node.tagName === 'TEXTAREA') {
                         addPasteSupport(node);
+                        // Add formatting for specific credit card inputs
+                        if (node.id === 'card-number') {
+                            formatCardNumber(node);
+                        } else if (node.id === 'card-expiry') {
+                            formatExpiryDate(node);
+                        }
                     }
                     // Check for input/textarea children
                     const inputs = node.querySelectorAll && node.querySelectorAll('input, textarea');
                     if (inputs) {
-                        inputs.forEach(addPasteSupport);
+                        inputs.forEach(input => {
+                            addPasteSupport(input);
+                            if (input.id === 'card-number') {
+                                formatCardNumber(input);
+                            } else if (input.id === 'card-expiry') {
+                                formatExpiryDate(input);
+                            }
+                        });
                     }
                 }
             });
