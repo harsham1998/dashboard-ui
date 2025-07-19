@@ -38,7 +38,7 @@ class AuthSystem {
             if (!appData.importantFeed) appData.importantFeed = [];
             if (!appData.quickNotes) appData.quickNotes = '';
             
-            await initializeUI();
+            updateUIFromLoadedData();
         } catch (error) {
             console.error('Error loading user data:', error);
             // Ensure appData is initialized even if loading fails
@@ -404,8 +404,8 @@ function updateProfileInfo() {
 
 // Gmail Configuration - Secrets should be set via environment variables
 const GMAIL_CONFIG = {
-    client_id: process.env.GMAIL_CLIENT_ID || '',
-    client_secret: process.env.GMAIL_CLIENT_SECRET || '',
+    client_id: '629809071861-nulh6u2fb1bcrm3emcmdbl0ecgj5fv3n.apps.googleusercontent.com',
+    client_secret: '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',
     redirect_uri: 'https://dashboard-flask-api.onrender.com/oauth/gmail/callback',
     scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/userinfo.email',
     response_type: 'code',
@@ -2433,43 +2433,62 @@ async function renderTransactions() {
         const userId = currentUser.id;
         const firebaseUrl = 'https://dashboard-app-fcd42-default-rtdb.firebaseio.com';
         
-        // Fetch user transactions from user-specific file
-        const response = await fetch(`${firebaseUrl}/${userId}.json`);
+        // Fetch user transactions from user-specific transactions.json file
+        const response = await fetch(`${firebaseUrl}/${userId}/transactions.json`);
         
         let transactions = [];
         if (response.ok) {
-            const userData = await response.json();
-            transactions = userData?.transactions || [];
+            const transactionData = await response.json();
+            transactions = Array.isArray(transactionData) ? transactionData : [];
         }
         
-        // Also get global transactions for backward compatibility
-        const globalTransactions = (appData.transactions || []);
+        // Sort transactions by date (most recent first)
+        transactions.sort((a, b) => {
+            const dateA = new Date(a.timestamp || a.date || 0);
+            const dateB = new Date(b.timestamp || b.date || 0);
+            return dateB - dateA;
+        });
         
-        // Combine both arrays and remove duplicates
-        const allTransactions = [...transactions, ...globalTransactions];
-        
-        // Filter out read transactions and get recent ones
-        const unreadTransactions = allTransactions.filter(t => !t.isRead);
-        const recentTransactions = unreadTransactions.slice(0, 5);
+        // Get recent transactions (limit to 10)
+        const recentTransactions = transactions.slice(0, 10);
         
         if (recentTransactions.length === 0) {
-            container.innerHTML = '<div style="text-align: center; color: rgba(255, 255, 255, 0.5); padding: 20px; font-size: 12px;">No unread transactions</div>';
+            container.innerHTML = '<div style="text-align: center; color: rgba(255, 255, 255, 0.5); padding: 20px; font-size: 12px;">No recent transactions</div>';
             return;
         }
         
         container.innerHTML = recentTransactions.map(transaction => {
-            const timeAgo = getTimeAgo(transaction.timestamp || transaction.date);
-            const sign = transaction.type === 'credited' || transaction.type === 'credit' ? '+' : '-';
-            const amountDisplay = `${sign}₹${transaction.amount.toLocaleString()}`;
+            // Safely extract transaction data with fallbacks
+            const timestamp = transaction.timestamp || transaction.date || transaction.emailDate || new Date().toISOString();
+            const timeAgo = getTimeAgo(timestamp);
+            
+            // Determine transaction type and sign
+            const type = transaction.type || (transaction.amount > 0 ? 'credited' : 'debited');
+            const sign = type === 'credited' || type === 'credit' ? '+' : '-';
+            
+            // Format amount safely
+            const amount = transaction.amount || 0;
+            const amountDisplay = `${sign}₹${Math.abs(amount).toLocaleString()}`;
+            
+            // Get description with fallbacks
+            const description = transaction.description || transaction.merchant || transaction.emailSubject || 'Transaction';
+            
+            // Get account/mode info
+            const mode = transaction.mode || transaction.account || transaction.bank || 'Unknown';
+            
+            // Get source info
+            const source = transaction.source || (transaction.emailFrom ? 'Email' : 'Manual');
             
             return `
-                <div class="transaction-item ${transaction.type}" onclick="showTransactionDetails('${transaction.id}')">
+                <div class="transaction-item ${type}" onclick="showTransactionDetails('${transaction.id}')">
                     <div class="transaction-main">
-                        <div class="transaction-amount ${transaction.type}">${amountDisplay}</div>
+                        <div class="transaction-amount ${type}">${amountDisplay}</div>
                         <div class="transaction-details">
-                            <span>${transaction.description || transaction.merchant}</span>
-                            <span class="transaction-mode">${transaction.mode || transaction.account}</span>
-                            <span class="transaction-source">${transaction.source || 'Manual'}</span>
+                            <div class="transaction-desc">${description}</div>
+                            <div class="transaction-meta">
+                                <span class="transaction-mode">${mode}</span>
+                                <span class="transaction-source">• ${source}</span>
+                            </div>
                         </div>
                     </div>
                     <div class="transaction-time">${timeAgo}</div>
@@ -2503,14 +2522,47 @@ function getTimeAgo(timestamp) {
 // Transaction functions
 let currentTransactionId = null;
 
-function toggleTransactions() {
+async function toggleTransactions() {
     const container = document.getElementById('transactions-list');
     const arrow = document.getElementById('transactions-arrow');
     
     if (container.style.display === 'none') {
-        container.style.display = 'block';
-        arrow.classList.add('expanded');
-        arrow.textContent = '▲';
+        // Require Touch ID authentication before showing transactions
+        if (window.electronAPI && window.electronAPI.biometric) {
+            try {
+                container.innerHTML = '<div style="text-align: center; color: rgba(255, 255, 255, 0.5); padding: 20px; font-size: 12px;">🔐 Touch ID authentication required...</div>';
+                
+                const authResult = await window.electronAPI.biometric.authenticate('Access recent transactions');
+                
+                if (authResult.success) {
+                    container.style.display = 'block';
+                    arrow.classList.add('expanded');
+                    arrow.textContent = '▲';
+                    
+                    // Load transactions after successful authentication
+                    await renderTransactions();
+                } else {
+                    container.innerHTML = '<div style="text-align: center; color: rgba(255, 255, 255, 0.5); padding: 20px; font-size: 12px;">❌ Authentication failed</div>';
+                    setTimeout(() => {
+                        container.style.display = 'none';
+                        container.innerHTML = '';
+                    }, 2000);
+                }
+            } catch (error) {
+                console.error('Touch ID authentication error:', error);
+                container.innerHTML = '<div style="text-align: center; color: rgba(255, 255, 255, 0.5); padding: 20px; font-size: 12px;">❌ Authentication not available</div>';
+                setTimeout(() => {
+                    container.style.display = 'none';
+                    container.innerHTML = '';
+                }, 2000);
+            }
+        } else {
+            // Fallback for non-Electron environments
+            container.style.display = 'block';
+            arrow.classList.add('expanded');
+            arrow.textContent = '▲';
+            await renderTransactions();
+        }
     } else {
         container.style.display = 'none';
         arrow.classList.remove('expanded');
@@ -2518,38 +2570,74 @@ function toggleTransactions() {
     }
 }
 
-function showTransactionDetails(transactionId) {
-    const transaction = appData.transactions.find(t => t.id === transactionId);
+async function showTransactionDetails(transactionId) {
+    // Get transactions from Firebase
+    let transaction = null;
+    
+    try {
+        const currentUser = authSystem.currentUser;
+        if (currentUser && currentUser.id) {
+            const firebaseUrl = 'https://dashboard-app-fcd42-default-rtdb.firebaseio.com';
+            const response = await fetch(`${firebaseUrl}/${currentUser.id}/transactions.json`);
+            
+            if (response.ok) {
+                const transactions = await response.json();
+                if (Array.isArray(transactions)) {
+                    transaction = transactions.find(t => t.id === transactionId);
+                }
+            }
+        }
+        
+        // Fallback to local transactions
+        if (!transaction) {
+            transaction = appData.transactions.find(t => t.id === transactionId);
+        }
+    } catch (error) {
+        console.error('Error loading transaction details:', error);
+        transaction = appData.transactions.find(t => t.id === transactionId);
+    }
+    
     if (!transaction) return;
     
     currentTransactionId = transactionId;
     
-    const sign = transaction.type === 'credited' ? '+' : '-';
-    const amountDisplay = `${sign}₹${transaction.amount.toLocaleString()}`;
+    // Safely extract transaction data
+    const type = transaction.type || (transaction.amount > 0 ? 'credited' : 'debited');
+    const sign = type === 'credited' || type === 'credit' ? '+' : '-';
+    const amount = transaction.amount || 0;
+    const amountDisplay = `${sign}₹${Math.abs(amount).toLocaleString()}`;
+    
+    // Get all available data with fallbacks
+    const description = transaction.description || transaction.merchant || transaction.emailSubject || 'Transaction';
+    const bank = transaction.bank || transaction.account || 'Unknown Bank';
+    const mode = transaction.mode || transaction.paymentMethod || 'Unknown';
+    const date = transaction.date || transaction.timestamp || transaction.emailDate || new Date().toISOString();
+    const reference = transaction.reference || transaction.id || 'N/A';
+    const source = transaction.source || (transaction.emailFrom ? 'Email Detection' : 'Manual Entry');
     
     const detailsHtml = `
-        <div class="transaction-amount-large ${transaction.type}">
+        <div class="transaction-amount-large ${type}">
             ${amountDisplay}
         </div>
         
         <div class="transaction-detail-row">
             <span class="transaction-detail-label">Type:</span>
-            <span class="transaction-detail-value">${transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}</span>
+            <span class="transaction-detail-value">${type.charAt(0).toUpperCase() + type.slice(1)}</span>
         </div>
         
         <div class="transaction-detail-row">
             <span class="transaction-detail-label">Description:</span>
-            <span class="transaction-detail-value">${transaction.description}</span>
+            <span class="transaction-detail-value">${description}</span>
         </div>
         
         <div class="transaction-detail-row">
-            <span class="transaction-detail-label">Bank:</span>
-            <span class="transaction-detail-value">${transaction.bank}</span>
+            <span class="transaction-detail-label">Bank/Account:</span>
+            <span class="transaction-detail-value">${bank}</span>
         </div>
         
         <div class="transaction-detail-row">
-            <span class="transaction-detail-label">Mode:</span>
-            <span class="transaction-detail-value">${transaction.mode}</span>
+            <span class="transaction-detail-label">Payment Mode:</span>
+            <span class="transaction-detail-value">${mode}</span>
         </div>
         
         ${transaction.balance ? `
@@ -2561,18 +2649,23 @@ function showTransactionDetails(transactionId) {
         
         <div class="transaction-detail-row">
             <span class="transaction-detail-label">Date & Time:</span>
-            <span class="transaction-detail-value">${new Date(transaction.timestamp).toLocaleString()}</span>
+            <span class="transaction-detail-value">${new Date(date).toLocaleString()}</span>
         </div>
         
         <div class="transaction-detail-row">
-            <span class="transaction-detail-label">Transaction ID:</span>
-            <span class="transaction-detail-value">${transaction.id}</span>
+            <span class="transaction-detail-label">Reference:</span>
+            <span class="transaction-detail-value">${reference}</span>
         </div>
         
-        ${transaction.rawMessage ? `
         <div class="transaction-detail-row">
-            <span class="transaction-detail-label">Raw Message:</span>
-            <span class="transaction-detail-value" style="font-size: 12px; color: rgba(255, 255, 255, 0.7);">${transaction.rawMessage}</span>
+            <span class="transaction-detail-label">Source:</span>
+            <span class="transaction-detail-value">${source}</span>
+        </div>
+        
+        ${transaction.rawMessage || transaction.emailSubject ? `
+        <div class="transaction-detail-row">
+            <span class="transaction-detail-label">Details:</span>
+            <span class="transaction-detail-value" style="font-size: 12px; color: rgba(255, 255, 255, 0.7);">${transaction.rawMessage || transaction.emailSubject || ''}</span>
         </div>
         ` : ''}
     `;
@@ -3219,7 +3312,7 @@ class DashboardApp {
 
     async loadData() {
         await loadDataFromStorage();
-        await initializeUI();
+        updateUIFromLoadedData();
     }
 
     checkElectronAPI() {

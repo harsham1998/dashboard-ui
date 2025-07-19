@@ -403,10 +403,23 @@
 
         .transaction-details {
             display: flex;
-            align-items: center;
-            gap: 8px;
+            flex-direction: column;
+            gap: 4px;
             color: rgba(255, 255, 255, 0.7);
             font-size: 11px;
+        }
+        
+        .transaction-desc {
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 500;
+            font-size: 12px;
+        }
+        
+        .transaction-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 10px;
         }
 
         .transaction-mode {

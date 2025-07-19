@@ -32,14 +32,14 @@ function createWindow() {
     hasShadow: false,
     fullscreenable: false,
     enableLargerThanScreen: true,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      enableRemoteModule: false,
-      webSecurity: false,
-      preload: path.join(__dirname, 'preload.js'),
-      backgroundThrottling: false
-    },
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        enableRemoteModule: false,
+        webSecurity: true,
+        preload: path.join(__dirname, 'preload.js'),
+        backgroundThrottling: false
+      },
     show: false,
     icon: path.join(__dirname, 'assets/icon.png')
   });
@@ -289,6 +289,13 @@ const template = [
         label: 'Toggle Developer Tools',
         accelerator: 'F12',
         click: () => mainWindow.webContents.toggleDevTools()
+      },
+      {
+        label: 'Open DevTools in Separate Window',
+        accelerator: 'Command+Option+I',
+        click: () => {
+          mainWindow.webContents.openDevTools({ mode: 'detach' });
+        }
       },
       { type: 'separator' },
       {
@@ -615,6 +622,85 @@ ipcMain.handle('siri-register-shortcuts', async () => {
 });
 
 // Handle Siri voice commands
+// Touch ID Authentication - Simplified working approach
+ipcMain.handle('biometric-authenticate', async (event, reason = 'Authentication required') => {
+  if (process.platform !== 'darwin') {
+    console.log('Touch ID only available on macOS');
+    return { success: false, error: 'Touch ID not available on this platform' };
+  }
+  
+  try {
+    const { spawn } = require('child_process');
+    
+    console.log('Requesting Touch ID authentication...');
+    
+    return new Promise((resolve) => {
+      // Use the compiled Objective-C binary for Touch ID authentication
+      const path = require('path');
+      const authBinaryPath = path.join(__dirname, 'touchid_auth');
+      
+      const authProcess = spawn(authBinaryPath, [reason || 'Access recent transactions'], {
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+      
+      let output = '';
+      let error = '';
+      
+      authProcess.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+      
+      authProcess.stderr.on('data', (data) => {
+        error += data.toString();
+      });
+      
+      authProcess.on('close', (code) => {
+        console.log(`Touch ID authentication process exited with code: ${code}`);
+        console.log(`Output: "${output.trim()}"`);
+        console.log(`Error: "${error.trim()}"`);
+        
+        const result = output.trim();
+        
+        if (code === 0) {
+          if (result === 'success_touchid') {
+            resolve({ success: true, method: 'touchid' });
+          } else if (result === 'success_password') {
+            resolve({ success: true, method: 'password' });
+          } else if (result === 'cancelled') {
+            resolve({ success: false, error: 'Authentication cancelled by user' });
+          } else if (result === 'password_fallback') {
+            resolve({ success: false, error: 'User chose password fallback' });
+          } else if (result === 'not_available') {
+            resolve({ success: false, error: 'Touch ID not available on this device' });
+          } else if (result === 'not_enrolled') {
+            resolve({ success: false, error: 'Touch ID not set up on this device' });
+          } else if (result === 'timeout') {
+            resolve({ success: false, error: 'Authentication timeout' });
+          } else {
+            resolve({ success: false, error: `Authentication failed: ${result}` });
+          }
+        } else {
+          resolve({ success: false, error: `Authentication failed: ${error || 'Unknown error'}` });
+        }
+      });
+      
+      authProcess.on('error', (err) => {
+        console.error('Touch ID spawn error:', err);
+        resolve({ success: false, error: err.message });
+      });
+      
+      // Set timeout
+      setTimeout(() => {
+        authProcess.kill();
+        resolve({ success: false, error: 'Authentication timeout' });
+      }, 35000);
+    });
+  } catch (error) {
+    console.error('Touch ID authentication error:', error);
+    return { success: false, error: `Authentication failed: ${error.message || 'Unknown error'}` };
+  }
+});
+
 ipcMain.handle('siri-process-command', async (event, command) => {
   try {
     console.log('Processing Siri command:', command);
