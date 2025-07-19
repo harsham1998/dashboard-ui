@@ -1,4 +1,3 @@
-
 // Firebase database URL
 const FIREBASE_URL = 'https://dashboard-app-fcd42-default-rtdb.firebaseio.com';
 
@@ -66,6 +65,14 @@ class AuthSystem {
             
             // Update profile info
             updateProfileInfo();
+            
+            // Start email monitoring if Gmail is connected
+            if (this.currentUser.gmailTokens) {
+                startEmailMonitoring();
+            }
+            
+            // Check for OAuth callback parameters
+            checkOAuthCallback();
         }
     }
 
@@ -73,23 +80,27 @@ class AuthSystem {
         try {
             const response = await fetch(`${FIREBASE_URL}/users.json`);
             const users = await response.json() || {};
-            
-            const userEmail = email.replace(/[.#$[\]]/g, '_');
-            const user = users[userEmail];
-
-            if (user && user.password === this.hashPassword(password)) {
-                // Update last login
-                user.lastLogin = new Date().toISOString();
-                await fetch(`${FIREBASE_URL}/users/${userEmail}.json`, {
+            let foundUser = null;
+            let foundId = null;
+            for (const [id, user] of Object.entries(users)) {
+                if (user.email === email && user.password === this.hashPassword(password)) {
+                    foundUser = user;
+                    foundId = id;
+                    break;
+                }
+            }
+            if (foundUser) {
+                foundUser.lastLogin = new Date().toISOString();
+                await fetch(`${FIREBASE_URL}/users/${foundId}.json`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(user)
+                    body: JSON.stringify(foundUser)
                 });
-
                 return {
-                    name: user.name,
-                    email: user.email,
-                    userFile: `${userEmail}.json`
+                    id: foundId,
+                    name: foundUser.name,
+                    email: foundUser.email,
+                    userFile: foundUser.userFile || `${foundId}.json`
                 };
             }
         } catch (error) {
@@ -109,7 +120,7 @@ class AuthSystem {
         return hash.toString();
     }
 
-    async createUserDataFile(userEmail) {
+    async createUserDataFile(userId) {
         try {
             const defaultData = {
                 tasks: {
@@ -138,7 +149,7 @@ class AuthSystem {
                 lastUpdated: new Date().toISOString()
             };
 
-            const response = await fetch(`${FIREBASE_URL}/${userEmail}.json`, {
+            const response = await fetch(`${FIREBASE_URL}/${userId}.json`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(defaultData)
@@ -213,37 +224,32 @@ async function signup() {
     }
 
     try {
-        // Check if user already exists
         const response = await fetch(`${FIREBASE_URL}/users.json`);
         const users = await response.json() || {};
-        const userEmail = email.replace(/[.#$[\]]/g, '_');
-        
-        if (users[userEmail]) {
-            showAuthMessage('User already exists', 'error');
-            return;
+        for (const user of Object.values(users)) {
+            if (user.email === email) {
+                showAuthMessage('User already exists', 'error');
+                return;
+            }
         }
-
-        // Create new user
+        const userId = email.replace(/[@.]/g, '_').replace(/[^a-zA-Z0-9_]/g, '_');
         const userData = {
+            id: userId,
             name: name,
             email: email,
             password: authSystem.hashPassword(password),
             createdAt: new Date().toISOString(),
-            lastLogin: new Date().toISOString()
+            lastLogin: new Date().toISOString(),
+            userFile: `${userId}.json`
         };
-
-        users[userEmail] = userData;
-        
+        users[userId] = userData;
         const saveResponse = await fetch(`${FIREBASE_URL}/users.json`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(users)
         });
-
         if (saveResponse.ok) {
-            // Create user data file
-            await authSystem.createUserDataFile(userEmail);
-            
+            await authSystem.createUserDataFile(userId);
             showAuthMessage('Account created successfully!', 'success');
             setTimeout(() => {
                 showLogin();
@@ -396,10 +402,862 @@ function updateProfileInfo() {
     }
 }
 
-// Connect Email Function (placeholder)
-function connectEmail() {
-    // TODO: Implement email connection functionality
-    alert('Connect Email functionality will be implemented later!');
+// Gmail Configuration - Secrets should be set via environment variables
+const GMAIL_CONFIG = {
+    client_id: process.env.GMAIL_CLIENT_ID || '',
+    client_secret: process.env.GMAIL_CLIENT_SECRET || '',
+    redirect_uri: 'https://dashboard-flask-api.onrender.com/oauth/gmail/callback',
+    scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/userinfo.email',
+    response_type: 'code',
+    access_type: 'offline',
+    prompt: 'consent'
+};
+
+// Email Connection Functions
+function openEmailConnectionModal() {
+    const modal = document.getElementById('emailConnectionModal');
+    modal.style.display = 'block';
+    
+    // Load and display connected accounts
+    loadConnectedAccounts();
+}
+
+function closeEmailConnectionModal() {
+    const modal = document.getElementById('emailConnectionModal');
+    modal.style.display = 'none';
+    
+    // Clean up Firebase listener
+    if (window.connectionsListener) {
+        window.connectionsListener.off();
+        window.connectionsListener = null;
+    }
+}
+
+function loadConnectedAccounts() {
+    const gmailConnections = document.getElementById('gmail-connections');
+    const outlookConnections = document.getElementById('outlook-connections');
+    
+    // Clear existing connections
+    gmailConnections.innerHTML = '<div class="loading">Loading connections...</div>';
+    outlookConnections.innerHTML = '<div class="loading">Loading connections...</div>';
+    
+    // Get current user email
+    const currentUser = authSystem.currentUser;
+    if (!currentUser || !currentUser.email) {
+        gmailConnections.innerHTML = '<div class="no-connections">Please login to view connections</div>';
+        outlookConnections.innerHTML = '<div class="no-connections">Please login to view connections</div>';
+        return;
+    }
+    
+    // Use user ID for Firebase access
+    const userId = currentUser.id;
+    
+    // Access Firebase directly
+    const firebaseUrl = 'https://dashboard-app-fcd42-default-rtdb.firebaseio.com';
+    
+    // Fetch user data from Firebase
+    fetch(`${firebaseUrl}/users/${userId}.json`)
+        .then(response => response.json())
+        .then(userData => {
+            console.log('User data from Firebase:', userData);
+            
+            // Clear loading states
+            gmailConnections.innerHTML = '';
+            outlookConnections.innerHTML = '';
+            
+            // Handle Gmail connections
+            if (userData && userData.gmailTokens && userData.gmailTokens.connected) {
+                // Check if connection is active (has refresh token for getting new access tokens)
+                const hasRefreshToken = userData.gmailTokens.refresh_token;
+                const isActive = hasRefreshToken && userData.gmailTokens.connected;
+                
+                const gmailConnection = createConnectionItem({
+                    email: userData.email || currentUser.email,
+                    provider: 'gmail',
+                    connected: true,
+                    active: isActive,
+                    connectedAt: userData.gmailTokens.created_at,
+                    refreshToken: userData.gmailTokens.refresh_token
+                });
+                gmailConnections.appendChild(gmailConnection);
+                
+                // Update connect button
+                const connectBtn = document.getElementById('gmail-connect-btn');
+                if (connectBtn) {
+                    connectBtn.innerHTML = '<span class="connect-icon">✓</span>Connected';
+                    connectBtn.style.background = '#22c55e';
+                    connectBtn.disabled = true;
+                }
+            } else {
+                gmailConnections.innerHTML = '<div class="no-connections">No Gmail accounts connected</div>';
+                
+                // Reset connect button
+                const connectBtn = document.getElementById('gmail-connect-btn');
+                if (connectBtn) {
+                    connectBtn.innerHTML = '<span class="connect-icon">🔗</span>Connect';
+                    connectBtn.style.background = '#3b82f6';
+                    connectBtn.disabled = false;
+                }
+            }
+            
+            // Handle Outlook connections (always show as coming soon for now)
+            outlookConnections.innerHTML = '<div class="no-connections">Outlook integration coming soon</div>';
+            
+        })
+        .catch(error => {
+            console.error('Error loading connections from Firebase:', error);
+            gmailConnections.innerHTML = '<div class="error">Failed to load Gmail connections</div>';
+            outlookConnections.innerHTML = '<div class="error">Failed to load Outlook connections</div>';
+        });
+}
+
+function createConnectionItem(connection) {
+    const item = document.createElement('div');
+    item.className = 'connection-item';
+    
+    const connectedDate = connection.connectedAt ? new Date(connection.connectedAt).toLocaleDateString() : 'Unknown';
+    const statusText = connection.active ? 'Active' : 'Inactive';
+    const statusClass = connection.active ? 'connected' : 'disconnected';
+    
+    item.innerHTML = `
+        <div class="connection-info">
+            <div class="connection-status ${statusClass}"></div>
+            <div>
+                <div class="connection-email">${connection.email}</div>
+                <div class="connection-date">Connected on ${connectedDate}</div>
+                <div class="connection-status-text ${statusClass}">${statusText}</div>
+            </div>
+        </div>
+        <div class="connection-actions">
+            <button class="connection-btn" onclick="refreshGmailToken('${connection.email}', '${connection.refreshToken}')" title="Refresh Token">
+                🔄
+            </button>
+            <button class="connection-btn disconnect" onclick="disconnectGmail('${connection.email}')" title="Disconnect">
+                ❌
+            </button>
+        </div>
+    `;
+    
+    return item;
+}
+
+function refreshGmailToken(email, refreshToken) {
+    if (!refreshToken) {
+        console.error('No refresh token available');
+        alert('No refresh token available. Please reconnect your Gmail account.');
+        return;
+    }
+    
+    // Call the API to refresh the token
+    fetch('https://dashboard-flask-api.onrender.com/oauth/gmail/refresh', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            refresh_token: refreshToken,
+            userEmail: email
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.tokens) {
+            console.log('Token refreshed successfully');
+            // Reload the connections to show updated status
+            loadConnectedAccounts();
+        } else {
+            console.error('Failed to refresh token:', data);
+            alert('Failed to refresh token. Please try reconnecting your Gmail account.');
+        }
+    })
+    .catch(error => {
+        console.error('Error refreshing token:', error);
+        alert('Error refreshing token. Please try again.');
+    });
+}
+
+function disconnectGmail(email) {
+    if (!confirm('Are you sure you want to disconnect your Gmail account?')) {
+        return;
+    }
+    
+    const userId = authSystem.currentUser.id;
+    const firebaseUrl = 'https://dashboard-app-fcd42-default-rtdb.firebaseio.com';
+    
+    // Remove Gmail tokens from Firebase
+    fetch(`${firebaseUrl}/users/${userId}/gmailTokens.json`, {
+        method: 'DELETE'
+    })
+    .then(response => {
+        if (response.ok) {
+            console.log('Gmail account disconnected successfully');
+            // Reload the connections to show updated status
+            loadConnectedAccounts();
+        } else {
+            console.error('Failed to disconnect Gmail account');
+            alert('Failed to disconnect Gmail account. Please try again.');
+        }
+    })
+    .catch(error => {
+        console.error('Error disconnecting Gmail account:', error);
+        alert('Error disconnecting Gmail account. Please try again.');
+    });
+}
+
+function refreshConnection(provider) {
+    if (provider === 'gmail') {
+        // This function is deprecated, use refreshGmailToken instead
+        showNotification('Refreshing Gmail connection...');
+        // You could trigger a token refresh here
+    }
+}
+
+function disconnectAccount(provider) {
+    if (provider === 'gmail') {
+        if (confirm('Are you sure you want to disconnect Gmail? This will stop automatic transaction detection.')) {
+            disconnectGmail();
+        }
+    }
+}
+
+function disconnectGmail() {
+    // Remove Gmail tokens from user data
+    if (authSystem.currentUser) {
+        delete authSystem.currentUser.gmailTokens;
+        
+        // Update Firebase
+        const userId = authSystem.currentUser.id;
+        fetch(`${FIREBASE_URL}/users/${userId}.json`)
+            .then(response => response.json())
+            .then(userData => {
+                delete userData.gmailTokens;
+                
+                return fetch(`${FIREBASE_URL}/users/${userId}.json`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(userData)
+                });
+            })
+            .then(() => {
+                // Update localStorage
+                localStorage.setItem('dashboardUser', JSON.stringify(authSystem.currentUser));
+                
+                // Stop email monitoring
+                stopEmailMonitoring();
+                
+                // Refresh the modal
+                loadConnectedAccounts();
+                
+                showNotification('Gmail disconnected successfully');
+            })
+            .catch(error => {
+                console.error('Error disconnecting Gmail:', error);
+                showNotification('Failed to disconnect Gmail');
+            });
+    }
+}
+
+function connectGmail() {
+    // Check if user is already connected
+    if (authSystem.currentUser && authSystem.currentUser.gmailTokens) {
+        showNotification('Gmail is already connected!');
+        return;
+    }
+    
+    // Generate OAuth URL
+    const authUrl = generateGmailAuthUrl();
+    
+    // Open OAuth window
+    const authWindow = window.open(authUrl, 'gmail-auth', 'width=500,height=600,scrollbars=yes,resizable=yes');
+    
+    // Listen for auth completion
+    const authInterval = setInterval(() => {
+        try {
+            if (authWindow.closed) {
+                clearInterval(authInterval);
+                // Refresh user data from Firebase to check for new tokens
+                refreshUserDataFromFirebase();
+            }
+        } catch (error) {
+            // Handle cross-origin errors
+        }
+    }, 1000);
+}
+
+function connectOutlook() {
+    showNotification('Outlook integration coming soon!');
+}
+
+// Refresh user data from Firebase
+async function refreshUserDataFromFirebase() {
+    try {
+        if (!authSystem.currentUser) return;
+        
+        const userId = authSystem.currentUser.id;
+        const response = await fetch(`${FIREBASE_URL}/users/${userId}.json`);
+        
+        if (response.ok) {
+            const userData = await response.json();
+            
+            if (userData) {
+                // Update current user with fresh data from Firebase
+                authSystem.currentUser = {
+                    ...authSystem.currentUser,
+                    ...userData
+                };
+                
+                // Update localStorage
+                localStorage.setItem('dashboardUser', JSON.stringify(authSystem.currentUser));
+                
+                // Check if Gmail was just connected
+                if (userData.gmailTokens && userData.gmailTokens.connected) {
+                    showNotification('Gmail connected successfully!');
+                    startEmailMonitoring();
+                    
+                    // Refresh the modal if it's open
+                    const modal = document.getElementById('emailConnectionModal');
+                    if (modal.style.display === 'block') {
+                        loadConnectedAccounts();
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error refreshing user data:', error);
+    }
+}
+
+function generateGmailAuthUrl() {
+    const params = new URLSearchParams({
+        client_id: GMAIL_CONFIG.client_id,
+        redirect_uri: GMAIL_CONFIG.redirect_uri,
+        scope: GMAIL_CONFIG.scope,
+        response_type: GMAIL_CONFIG.response_type,
+        access_type: GMAIL_CONFIG.access_type,
+        prompt: GMAIL_CONFIG.prompt,
+        state: authSystem.currentUser.email // Pass user email as state
+    });
+    
+    return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+}
+
+// OAuth status checking removed - tokens are stored directly in Firebase
+
+// OAuth callback handling
+function checkOAuthCallback() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const authSuccess = urlParams.get('auth_success');
+    const authError = urlParams.get('auth_error');
+    
+    if (authSuccess === 'gmail_connected') {
+        // Gmail was connected successfully
+        // Refresh user data from Firebase to get new tokens
+        setTimeout(() => {
+            refreshUserDataFromFirebase();
+        }, 1000);
+        
+        // Clean up URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (authError) {
+        // Authentication failed
+        let errorMessage = 'Gmail authentication failed';
+        
+        switch (authError) {
+            case 'access_denied':
+                errorMessage = 'Gmail access was denied';
+                break;
+            case 'no_code':
+                errorMessage = 'No authorization code received';
+                break;
+            case 'token_exchange_failed':
+                errorMessage = 'Failed to exchange tokens';
+                break;
+            case 'callback_failed':
+                errorMessage = 'OAuth callback failed';
+                break;
+        }
+        
+        showNotification(errorMessage);
+        
+        // Clean up URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+    }
+}
+
+// Gmail API Functions
+async function exchangeGmailCode(authCode) {
+    try {
+        // Use your API to exchange the code for tokens
+        const response = await fetch('https://dashboard-flask-api.onrender.com/oauth/gmail/exchange', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                code: authCode,
+                userEmail: authSystem.currentUser.email
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok || result.error) {
+            throw new Error(result.error || 'Token exchange failed');
+        }
+        
+        // Store tokens in user data
+        await storeGmailTokens(result.tokens);
+        
+        // Start email monitoring
+        startEmailMonitoring();
+        
+        return result.tokens;
+    } catch (error) {
+        console.error('Error exchanging Gmail code:', error);
+        throw error;
+    }
+}
+
+async function storeGmailTokens(tokens) {
+    try {
+        // Get current user data
+        const userEmail = authSystem.currentUser.email.replace(/[.#$[\]]/g, '_');
+        
+        // Get user from Firebase
+        const response = await fetch(`${FIREBASE_URL}/users/${userEmail}.json`);
+        const userData = await response.json();
+        
+        // Add Gmail tokens
+        userData.gmailTokens = {
+            access_token: tokens.access_token,
+            refresh_token: tokens.refresh_token,
+            expires_in: tokens.expires_in,
+            token_type: tokens.token_type,
+            scope: tokens.scope,
+            created_at: new Date().toISOString()
+        };
+        
+        // Save back to Firebase
+        await fetch(`${FIREBASE_URL}/users/${userId}.json`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(userData)
+        });
+        
+        // Update current user
+        authSystem.currentUser.gmailTokens = userData.gmailTokens;
+        
+        // Update local storage
+        localStorage.setItem('dashboardUser', JSON.stringify(authSystem.currentUser));
+        
+        alert('Gmail connected successfully!');
+    } catch (error) {
+        console.error('Error storing Gmail tokens:', error);
+        throw error;
+    }
+}
+
+async function refreshGmailToken() {
+    try {
+        const gmailTokens = authSystem.currentUser.gmailTokens;
+        
+        if (!gmailTokens || !gmailTokens.refresh_token) {
+            throw new Error('No refresh token available');
+        }
+        
+        // Use your API to refresh the token
+        const response = await fetch('https://dashboard-flask-api.onrender.com/oauth/gmail/refresh', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                refresh_token: gmailTokens.refresh_token,
+                userEmail: authSystem.currentUser.email
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok || result.error) {
+            throw new Error(result.error || 'Token refresh failed');
+        }
+        
+        // Update tokens (preserve refresh_token if not provided)
+        const updatedTokens = {
+            ...gmailTokens,
+            access_token: result.tokens.access_token,
+            expires_in: result.tokens.expires_in,
+            token_type: result.tokens.token_type,
+            scope: result.tokens.scope,
+            created_at: new Date().toISOString()
+        };
+        
+        if (result.tokens.refresh_token) {
+            updatedTokens.refresh_token = result.tokens.refresh_token;
+        }
+        
+        // Store updated tokens
+        await storeGmailTokens(updatedTokens);
+        
+        return updatedTokens;
+    } catch (error) {
+        console.error('Error refreshing Gmail token:', error);
+        throw error;
+    }
+}
+
+// Gmail API Functions (using your API)
+async function makeGmailApiCall(endpoint, method = 'GET', body = null) {
+    try {
+        if (!authSystem.currentUser || !authSystem.currentUser.gmailTokens) {
+            throw new Error('No Gmail access token available');
+        }
+        
+        const requestBody = {
+            userEmail: authSystem.currentUser.email,
+            endpoint: endpoint,
+            method: method,
+            ...body
+        };
+        
+        const response = await fetch('https://dashboard-flask-api.onrender.com/gmail/api', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok || result.error) {
+            if (response.status === 401 || result.error === 'Token expired') {
+                // Token expired, try to refresh
+                await refreshGmailToken();
+                
+                // Retry the request
+                return await makeGmailApiCall(endpoint, method, body);
+            }
+            
+            throw new Error(result.error || 'Gmail API call failed');
+        }
+        
+        return result.data;
+    } catch (error) {
+        console.error('Gmail API call failed:', error);
+        throw error;
+    }
+}
+
+async function searchGmailEmails(query = '', maxResults = 50) {
+    try {
+        const searchQuery = query || 'transaction OR payment OR purchase OR charge OR debit OR receipt OR invoice OR bank OR card';
+        
+        const response = await makeGmailApiCall('/users/me/messages', 'GET', {
+            q: searchQuery,
+            maxResults: maxResults
+        });
+        
+        return response.messages || [];
+    } catch (error) {
+        console.error('Error searching Gmail emails:', error);
+        return [];
+    }
+}
+
+async function getGmailEmail(messageId) {
+    try {
+        const response = await makeGmailApiCall(`/users/me/messages/${messageId}`, 'GET', {
+            format: 'full'
+        });
+        return response;
+    } catch (error) {
+        console.error('Error getting Gmail email:', error);
+        return null;
+    }
+}
+
+// Alternative: Use your API to get transactions directly
+async function getGmailTransactions(lastCheck = null) {
+    try {
+        if (!authSystem.currentUser || !authSystem.currentUser.gmailTokens) {
+            throw new Error('No Gmail access token available');
+        }
+        
+        const response = await fetch('https://dashboard-flask-api.onrender.com/gmail/transactions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                userEmail: authSystem.currentUser.email,
+                lastCheck: lastCheck
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok || result.error) {
+            throw new Error(result.error || 'Failed to get Gmail transactions');
+        }
+        
+        return result.transactions || [];
+    } catch (error) {
+        console.error('Error getting Gmail transactions:', error);
+        return [];
+    }
+}
+
+async function extractTransactionFromEmail(email) {
+    try {
+        const payload = email.payload;
+        const headers = payload.headers;
+        
+        // Get basic email info
+        const subject = headers.find(h => h.name === 'Subject')?.value || '';
+        const from = headers.find(h => h.name === 'From')?.value || '';
+        const date = headers.find(h => h.name === 'Date')?.value || '';
+        
+        // Get email body
+        let body = '';
+        if (payload.parts) {
+            // Multi-part email
+            for (const part of payload.parts) {
+                if (part.mimeType === 'text/plain' || part.mimeType === 'text/html') {
+                    if (part.body.data) {
+                        body += atob(part.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+                    }
+                }
+            }
+        } else if (payload.body.data) {
+            // Single-part email
+            body = atob(payload.body.data.replace(/-/g, '+').replace(/_/g, '/'));
+        }
+        
+        // Extract transaction data using regex patterns
+        const transaction = extractTransactionData(subject, body, from, date);
+        
+        if (transaction) {
+            transaction.emailId = email.id;
+            transaction.emailSubject = subject;
+            transaction.emailFrom = from;
+            transaction.emailDate = date;
+        }
+        
+        return transaction;
+    } catch (error) {
+        console.error('Error extracting transaction from email:', error);
+        return null;
+    }
+}
+
+function extractTransactionData(subject, body, from, date) {
+    const text = `${subject} ${body}`.toLowerCase();
+    
+    // Amount patterns
+    const amountPatterns = [
+        /\$([0-9,]+\.\d{2})/g,
+        /\$([0-9,]+)/g,
+        /([0-9,]+\.\d{2})\s*(?:usd|dollars?)/g,
+        /amount:?\s*\$?([0-9,]+\.?\d{0,2})/g,
+        /charged?\s*\$?([0-9,]+\.?\d{0,2})/g,
+        /paid?\s*\$?([0-9,]+\.?\d{0,2})/g
+    ];
+    
+    // Find amount
+    let amount = null;
+    for (const pattern of amountPatterns) {
+        const matches = text.match(pattern);
+        if (matches) {
+            const amountStr = matches[0].replace(/[^0-9.,]/g, '');
+            amount = parseFloat(amountStr.replace(/,/g, ''));
+            if (!isNaN(amount) && amount > 0) {
+                break;
+            }
+        }
+    }
+    
+    if (!amount) return null;
+    
+    // Merchant patterns
+    const merchantPatterns = [
+        /(?:at|from|to)\s+([a-zA-Z0-9\s&.-]+?)\s+(?:on|for|was|has)/g,
+        /merchant:?\s*([a-zA-Z0-9\s&.-]+)/g,
+        /purchase\s+(?:at|from)\s+([a-zA-Z0-9\s&.-]+)/g
+    ];
+    
+    let merchant = 'Unknown';
+    for (const pattern of merchantPatterns) {
+        const matches = text.match(pattern);
+        if (matches && matches[1]) {
+            merchant = matches[1].trim();
+            break;
+        }
+    }
+    
+    // Determine transaction type
+    const isCredit = /(?:received|refund|deposit|credit|cashback)/i.test(text);
+    const type = isCredit ? 'credit' : 'debit';
+    
+    // Extract card info
+    const cardPattern = /\*{4}(\d{4})|ending\s+in\s+(\d{4})|card\s+ending\s+(\d{4})/i;
+    const cardMatch = text.match(cardPattern);
+    const account = cardMatch ? `****${cardMatch[1] || cardMatch[2] || cardMatch[3]}` : 'Unknown';
+    
+    // Parse date
+    const transactionDate = date ? new Date(date).toISOString() : new Date().toISOString();
+    
+    return {
+        id: `gmail_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        amount: amount,
+        currency: 'USD',
+        date: transactionDate,
+        merchant: merchant,
+        type: type,
+        account: account,
+        category: categorizeTransaction(merchant, text),
+        description: subject,
+        source: 'gmail',
+        processed: true,
+        verified: false
+    };
+}
+
+function categorizeTransaction(merchant, text) {
+    const categories = {
+        'shopping': ['amazon', 'walmart', 'target', 'ebay', 'etsy', 'shopping'],
+        'food': ['restaurant', 'mcdonald', 'starbucks', 'pizza', 'food', 'dining'],
+        'gas': ['shell', 'exxon', 'bp', 'chevron', 'gas', 'fuel'],
+        'entertainment': ['netflix', 'spotify', 'hulu', 'disney', 'movie', 'music'],
+        'utilities': ['electric', 'water', 'gas', 'internet', 'phone', 'utility'],
+        'healthcare': ['pharmacy', 'doctor', 'hospital', 'medical', 'health'],
+        'transport': ['uber', 'lyft', 'taxi', 'bus', 'train', 'transport']
+    };
+    
+    const combinedText = `${merchant} ${text}`.toLowerCase();
+    
+    for (const [category, keywords] of Object.entries(categories)) {
+        if (keywords.some(keyword => combinedText.includes(keyword))) {
+            return category;
+        }
+    }
+    
+    return 'other';
+}
+
+// Email monitoring functions
+let emailMonitoringInterval = null;
+
+function startEmailMonitoring() {
+    if (emailMonitoringInterval) {
+        clearInterval(emailMonitoringInterval);
+    }
+    
+    // Check emails immediately
+    checkNewEmails();
+    
+    // Set up interval to check every 5 minutes
+    emailMonitoringInterval = setInterval(checkNewEmails, 5 * 60 * 1000);
+}
+
+function stopEmailMonitoring() {
+    if (emailMonitoringInterval) {
+        clearInterval(emailMonitoringInterval);
+        emailMonitoringInterval = null;
+    }
+}
+
+async function checkNewEmails() {
+    try {
+        if (!authSystem.currentUser || !authSystem.currentUser.gmailTokens) {
+            return;
+        }
+        
+        // Get the last check timestamp
+        const lastCheck = authSystem.currentUser.lastEmailCheck || null;
+        
+        // Use your API to get processed transactions
+        const newTransactions = await getGmailTransactions(lastCheck);
+        
+        if (!newTransactions.length) {
+            return;
+        }
+        
+        // Filter out transactions we already have
+        const filteredTransactions = newTransactions.filter(transaction => {
+            return !appData.transactions.find(t => t.emailId === transaction.emailId);
+        });
+        
+        // Add new transactions to app data
+        if (filteredTransactions.length > 0) {
+            appData.transactions = [...filteredTransactions, ...appData.transactions];
+            await saveDataToStorage();
+            
+            // Update UI
+            renderTransactions();
+            
+            // Show notification
+            showNotification(`Found ${filteredTransactions.length} new transaction(s) from Gmail`);
+        }
+        
+        // Update last check timestamp
+        authSystem.currentUser.lastEmailCheck = new Date().toISOString();
+        
+        // Update user data in Firebase
+        const userId = authSystem.currentUser.id;
+        const response = await fetch(`${FIREBASE_URL}/users/${userId}.json`);
+        const userData = await response.json();
+        userData.lastEmailCheck = authSystem.currentUser.lastEmailCheck;
+        
+        await fetch(`${FIREBASE_URL}/users/${userId}.json`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(userData)
+        });
+        
+        // Update localStorage
+        localStorage.setItem('dashboardUser', JSON.stringify(authSystem.currentUser));
+        
+    } catch (error) {
+        console.error('Error checking new emails:', error);
+    }
+}
+
+function showNotification(message, type = 'success') {
+    // Create a simple notification
+    const notification = document.createElement('div');
+    notification.className = 'email-notification';
+    notification.textContent = message;
+    
+    // Define colors for different types
+    const colors = {
+        success: '#10b981',
+        warning: '#f59e0b', 
+        error: '#ef4444',
+        info: '#3b82f6'
+    };
+    
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: ${colors[type] || colors.success};
+        color: white;
+        padding: 12px 16px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        z-index: 10000;
+        font-size: 14px;
+        font-weight: 500;
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Remove after 5 seconds
+    setTimeout(() => {
+        notification.remove();
+    }, 5000);
 }
 
 // Global variables
@@ -782,12 +1640,9 @@ function showSaveStatus(status) {
 
 async function saveDataToStorage() {
     try {
-        // Check if user is authenticated
         if (!authSystem || !authSystem.currentUser) {
             return;
         }
-        
-        // Save data to Firebase API
         const userFile = authSystem.getUserFilePath();
         const response = await fetch(`${FIREBASE_URL}/${userFile}`, {
             method: 'PUT',
@@ -796,7 +1651,6 @@ async function saveDataToStorage() {
             },
             body: JSON.stringify(appData)
         });
-        
         if (!response.ok) {
             console.error('Failed to save data to Firebase:', response.status);
         }
@@ -869,36 +1723,24 @@ function cleanupAppData() {
 
 async function refreshDataFromFile() {
     try {
-        // Check if user is authenticated
         if (!authSystem || !authSystem.currentUser) {
             return;
         }
-        
-        // Refresh data from Firebase API
         const userFile = authSystem.getUserFilePath();
         const response = await fetch(`${FIREBASE_URL}/${userFile}`);
-        
         if (response.ok) {
             const firebaseData = await response.json();
             if (firebaseData) {
-                // Check if user is typing in quick notes or pasting
                 const quickNotesElement = document.getElementById('quick-notes');
                 const isTypingNotes = quickNotesElement && (
                     document.activeElement === quickNotesElement ||
                     quickNotesElement.matches(':focus')
                 );
-                
-                // Store current quick notes value if user is typing or pasting
                 const currentQuickNotes = (isTypingNotes || isPasting) ? appData.quickNotes : null;
-                
-                // Replace in-memory data completely with Firebase data
                 appData = firebaseData;
-                
-                // Restore quick notes if user was typing or pasting
                 if ((isTypingNotes || isPasting) && currentQuickNotes !== null) {
                     appData.quickNotes = currentQuickNotes;
                 }
-                
                 renderTasks();
                 updateAllDisplays();
             }
@@ -962,7 +1804,7 @@ async function loadDataFromStorage() {
             appData = getDefaultAppData();
             cleanupAppData();
             // Create the user data file with default data
-            await authSystem.createUserDataFile(authSystem.currentUser.email.replace(/[.#$[\]]/g, '_'));
+            await authSystem.createUserDataFile(authSystem.currentUser.id);
         } else {
             appData = getDefaultAppData();
             cleanupAppData();
@@ -1572,39 +2414,73 @@ function openInChrome(url) {
 }
 
 // Recent Transactions functions
-function renderTransactions() {
+async function renderTransactions() {
     const container = document.getElementById('transactions-list');
     if (!container) return;
     
-    // Filter out read transactions
-    const allTransactions = (appData.transactions || []);
-    const unreadTransactions = allTransactions.filter(t => !t.isRead);
-    const transactions = unreadTransactions.slice(0, 5);
+    // Show loading state
+    container.innerHTML = '<div style="text-align: center; color: rgba(255, 255, 255, 0.5); padding: 20px; font-size: 12px;">Loading transactions...</div>';
     
-    if (transactions.length === 0) {
-        container.innerHTML = '<div style="text-align: center; color: rgba(255, 255, 255, 0.5); padding: 20px; font-size: 12px;">No unread transactions</div>';
-        return;
-    }
-    
-    container.innerHTML = transactions.map(transaction => {
-        const timeAgo = getTimeAgo(transaction.timestamp);
-        const sign = transaction.type === 'credited' ? '+' : '-';
-        const amountDisplay = `${sign}₹${transaction.amount.toLocaleString()}`;
+    try {
+        // Get current user
+        const currentUser = authSystem.currentUser;
+        if (!currentUser || !currentUser.email) {
+            container.innerHTML = '<div style="text-align: center; color: rgba(255, 255, 255, 0.5); padding: 20px; font-size: 12px;">Please login to view transactions</div>';
+            return;
+        }
         
-        return `
-            <div class="transaction-item ${transaction.type}" onclick="showTransactionDetails(${transaction.id})">
-                <div class="transaction-main">
-                    <div class="transaction-amount ${transaction.type}">${amountDisplay}</div>
-                    <div class="transaction-details">
-                        <span>${transaction.description}</span>
-                        <span class="transaction-mode">${transaction.mode}</span>
-                        <span>${transaction.bank}</span>
+        // Use user ID for Firebase access
+        const userId = currentUser.id;
+        const firebaseUrl = 'https://dashboard-app-fcd42-default-rtdb.firebaseio.com';
+        
+        // Fetch user transactions from user-specific file
+        const response = await fetch(`${firebaseUrl}/${userId}.json`);
+        
+        let transactions = [];
+        if (response.ok) {
+            const userData = await response.json();
+            transactions = userData?.transactions || [];
+        }
+        
+        // Also get global transactions for backward compatibility
+        const globalTransactions = (appData.transactions || []);
+        
+        // Combine both arrays and remove duplicates
+        const allTransactions = [...transactions, ...globalTransactions];
+        
+        // Filter out read transactions and get recent ones
+        const unreadTransactions = allTransactions.filter(t => !t.isRead);
+        const recentTransactions = unreadTransactions.slice(0, 5);
+        
+        if (recentTransactions.length === 0) {
+            container.innerHTML = '<div style="text-align: center; color: rgba(255, 255, 255, 0.5); padding: 20px; font-size: 12px;">No unread transactions</div>';
+            return;
+        }
+        
+        container.innerHTML = recentTransactions.map(transaction => {
+            const timeAgo = getTimeAgo(transaction.timestamp || transaction.date);
+            const sign = transaction.type === 'credited' || transaction.type === 'credit' ? '+' : '-';
+            const amountDisplay = `${sign}₹${transaction.amount.toLocaleString()}`;
+            
+            return `
+                <div class="transaction-item ${transaction.type}" onclick="showTransactionDetails('${transaction.id}')">
+                    <div class="transaction-main">
+                        <div class="transaction-amount ${transaction.type}">${amountDisplay}</div>
+                        <div class="transaction-details">
+                            <span>${transaction.description || transaction.merchant}</span>
+                            <span class="transaction-mode">${transaction.mode || transaction.account}</span>
+                            <span class="transaction-source">${transaction.source || 'Manual'}</span>
+                        </div>
                     </div>
+                    <div class="transaction-time">${timeAgo}</div>
                 </div>
-                <div class="transaction-time">${timeAgo}</div>
-            </div>
-        `;
-    }).join('');
+            `;
+        }).join('');
+        
+    } catch (error) {
+        console.error('Error loading transactions:', error);
+        container.innerHTML = '<div style="text-align: center; color: rgba(255, 255, 255, 0.5); padding: 20px; font-size: 12px;">Error loading transactions</div>';
+    }
 }
 
 function getTimeAgo(timestamp) {
@@ -1958,6 +2834,121 @@ function removeImportant(index) {
     saveDataToStorage();
 }
 
+// Drag and Drop Functions
+let draggedTask = null;
+
+function dragTask(event, dateKey, taskId) {
+    // Store the task data for dropping
+    draggedTask = {
+        dateKey: dateKey,
+        taskId: taskId,
+        task: appData.tasks[dateKey].find(t => t.id === taskId)
+    };
+    
+    // Set drag effect
+    event.dataTransfer.effectAllowed = "copy";
+    
+    // Add visual feedback to the task being dragged
+    event.target.style.opacity = "0.5";
+    
+    // Reset opacity when drag ends (for cancelled drags)
+    setTimeout(() => {
+        if (event.target) {
+            event.target.addEventListener('dragend', () => {
+                event.target.style.opacity = "";
+            });
+        }
+    }, 0);
+    
+    console.log('Dragging task:', draggedTask);
+}
+
+function allowDrop(event) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+}
+
+function dragEnter(event) {
+    event.preventDefault();
+    const dropZone = event.currentTarget;
+    dropZone.classList.add('drag-over');
+}
+
+function dragLeave(event) {
+    event.preventDefault();
+    const dropZone = event.currentTarget;
+    if (!dropZone.contains(event.relatedTarget)) {
+        dropZone.classList.remove('drag-over');
+    }
+}
+
+function dropToImportant(event) {
+    event.preventDefault();
+    const dropZone = event.currentTarget;
+    dropZone.classList.remove('drag-over');
+    
+    if (!draggedTask) {
+        console.error('No task data available for drop');
+        return;
+    }
+    
+    try {
+        // Create important feed item
+        const importantItem = {
+            id: Date.now(),
+            originalTaskId: draggedTask.taskId,
+            originalDate: draggedTask.dateKey,
+            text: draggedTask.task.text,
+            assignee: draggedTask.task.assignee,
+            status: draggedTask.task.status,
+            addedAt: new Date().toISOString(),
+            completed: draggedTask.task.completed
+        };
+        
+        // Add to important feed
+        if (!appData.importantFeed) {
+            appData.importantFeed = [];
+        }
+        
+        // Check if task is already in important feed
+        const exists = appData.importantFeed.some(item => 
+            item.originalTaskId === draggedTask.taskId && 
+            item.originalDate === draggedTask.dateKey
+        );
+        
+        if (exists) {
+            showNotification('Task is already in Important Feed', 'warning');
+            return;
+        }
+        
+        appData.importantFeed.unshift(importantItem);
+        
+        // Save to storage
+        saveDataToStorage();
+        
+        // Update UI
+        renderImportantFeed();
+        
+        // Show success notification
+        showNotification('Task added to Important Feed!', 'success');
+        
+        console.log('Task added to important feed:', importantItem);
+        
+    } catch (error) {
+        console.error('Error adding task to important feed:', error);
+        showNotification('Error adding task to Important Feed', 'error');
+    } finally {
+        // Reset drag state
+        draggedTask = null;
+        
+        // Reset any visual feedback on dragged elements
+        const taskElements = document.querySelectorAll('.task-item');
+        taskElements.forEach(el => {
+            el.style.opacity = "";
+        });
+    }
+}
+
 function navigateToImportantTask(originalTaskId, originalDate) {
     if (originalDate && originalTaskId) {
         // Navigate to the original date in todo view
@@ -1980,65 +2971,6 @@ function navigateToImportantTask(originalTaskId, originalDate) {
             });
         }, 100);
         
-    }
-}
-
-// Initialize UI after authentication
-async function initializeUI() {
-    renderQuickLinks();
-    renderTasks();
-    renderImportantFeed();
-    initializeFilterModal();
-}
-
-// Drag and Drop for Important Feed
-function dragTask(event, dateKey, taskId) {
-    const task = appData.tasks[dateKey].find(t => t.id === taskId);
-    if (task) {
-        event.dataTransfer.setData('application/json', JSON.stringify({
-            type: 'task',
-            task: task,
-            dateKey: dateKey
-        }));
-    }
-}
-
-function allowDrop(event) {
-    event.preventDefault();
-}
-
-function dragEnter(event) {
-    event.preventDefault();
-    document.getElementById('important-feed').classList.add('drag-over');
-}
-
-function dragLeave(event) {
-    event.preventDefault();
-    document.getElementById('important-feed').classList.remove('drag-over');
-}
-
-function dropToImportant(event) {
-    event.preventDefault();
-    document.getElementById('important-feed').classList.remove('drag-over');
-    
-    try {
-        const data = JSON.parse(event.dataTransfer.getData('application/json'));
-        if (data.type === 'task' && data.task) {
-            const duplicateText = `${data.task.text} (${data.task.assignee})`;
-            if (!appData.importantFeed.some(item => item.originalTaskId === data.task.id && item.originalDate === data.dateKey)) {
-                appData.importantFeed.push({
-                    id: Date.now(),
-                    text: duplicateText,
-                    originalTaskId: data.task.id,
-                    originalDate: data.dateKey,
-                    addedDate: new Date().toISOString()
-                });
-                renderImportantFeed();
-                saveDataToStorage();
-            } else {
-            }
-        }
-    } catch (error) {
     }
 }
 
@@ -2134,7 +3066,7 @@ function importData(event) {
 
 // Close modals and search when clicking outside
 window.onclick = function(event) {
-    const modals = ['linkModal', 'taskNoteModal', 'filterModal', 'trashInstructionsModal', 'transactionModal', 'creditCardsModal', 'addCardModal', 'profileModal'];
+    const modals = ['linkModal', 'taskNoteModal', 'filterModal', 'trashInstructionsModal', 'profileModal', 'emailConnectionModal'];
     modals.forEach(modalId => {
         const modal = document.getElementById(modalId);
         if (event.target === modal) {
@@ -2193,7 +3125,7 @@ document.addEventListener('DOMContentLoaded', function() {
 document.addEventListener('keydown', function(event) {
     if (event.key === 'Escape') {
         // Close any open modals
-        const modals = ['linkModal', 'taskNoteModal', 'filterModal', 'trashInstructionsModal', 'profileModal'];
+        const modals = ['linkModal', 'taskNoteModal', 'filterModal', 'trashInstructionsModal', 'profileModal', 'emailConnectionModal'];
         modals.forEach(modalId => {
             const modal = document.getElementById(modalId);
             if (modal.style.display === 'block') {
@@ -2203,6 +3135,9 @@ document.addEventListener('keydown', function(event) {
         
         // Close profile dropdown
         closeProfileDropdown();
+        
+        // Close email options
+        closeEmailOptions();
         
         // Close search results
         const searchResults = document.getElementById('search-results');

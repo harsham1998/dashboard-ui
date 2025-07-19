@@ -114,7 +114,7 @@
                             </a>
                         </div>
                     </div>
-                    <button class="connect-email-btn" onclick="connectEmail()" title="Connect Email">
+                    <button class="connect-email-btn" onclick="openEmailConnectionModal()" title="Connect Email">
                         <span class="email-icon">✉️</span>
                         <span class="email-text">Connect Email</span>
                     </button>
@@ -530,6 +530,58 @@
             </div>
             <div class="modal-actions">
                 <button class="modal-btn" onclick="closeTrashInstructionsModal()">Got it!</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Email Connection Modal -->
+    <div id="emailConnectionModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Connect Email Accounts</h3>
+                <button class="close-btn" onclick="closeEmailConnectionModal()">&times;</button>
+            </div>
+            <div class="email-providers">
+                <div class="provider-section">
+                    <div class="provider-header">
+                        <div class="provider-info">
+                            <span class="provider-icon-large">📧</span>
+                            <div class="provider-details">
+                                <h4>Gmail</h4>
+                                <p>Connect your Gmail account to automatically detect transactions</p>
+                            </div>
+                        </div>
+                        <button class="provider-connect-btn" id="gmail-connect-btn" onclick="connectGmail()">
+                            <span class="connect-icon">🔗</span>
+                            Connect
+                        </button>
+                    </div>
+                    <div class="provider-connections" id="gmail-connections">
+                        <!-- Gmail connections will be populated here -->
+                    </div>
+                </div>
+                
+                <div class="provider-section">
+                    <div class="provider-header">
+                        <div class="provider-info">
+                            <span class="provider-icon-large">📨</span>
+                            <div class="provider-details">
+                                <h4>Outlook</h4>
+                                <p>Connect your Outlook account (Coming Soon)</p>
+                            </div>
+                        </div>
+                        <button class="provider-connect-btn" disabled>
+                            <span class="connect-icon">🕒</span>
+                            Coming Soon
+                        </button>
+                    </div>
+                    <div class="provider-connections" id="outlook-connections">
+                        <!-- Outlook connections will be populated here -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn cancel" onclick="closeEmailConnectionModal()">Close</button>
             </div>
         </div>
     </div>

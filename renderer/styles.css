@@ -2174,3 +2174,259 @@
         .email-text {
             font-size: 11px;
         }
+
+        .email-arrow {
+            font-size: 8px;
+            transition: transform 0.2s ease;
+        }
+
+        .email-connection.active .email-arrow {
+            transform: rotate(180deg);
+        }
+
+        .email-options {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #1f2937;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+
+        .email-option {
+            width: 100%;
+            background: none;
+            border: none;
+            color: #e2e8f0;
+            padding: 8px 12px;
+            font-size: 11px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+            text-align: left;
+        }
+
+        .email-option:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .email-option:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .provider-icon {
+            font-size: 12px;
+        }
+
+        .provider-text {
+            flex: 1;
+            font-weight: 500;
+        }
+
+        .coming-soon {
+            font-size: 9px;
+            color: #94a3b8;
+            font-style: italic;
+        }
+
+        .gmail-option {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Email Connection Modal */
+        .email-providers {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            padding: 20px 0;
+        }
+        
+        .provider-section {
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            background: rgba(71, 85, 105, 0.2);
+        }
+        
+        .provider-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+        
+        .provider-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .provider-icon-large {
+            font-size: 32px;
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+        }
+        
+        .provider-details h4 {
+            margin: 0 0 4px 0;
+            font-size: 18px;
+            font-weight: 600;
+            color: #f1f5f9;
+        }
+        
+        .provider-details p {
+            margin: 0;
+            font-size: 14px;
+            color: #94a3b8;
+        }
+        
+        .provider-connect-btn {
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+        
+        .provider-connect-btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+            transform: translateY(-1px);
+        }
+        
+        .provider-connect-btn:disabled {
+            background: #64748b;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        
+        .connect-icon {
+            font-size: 14px;
+        }
+        
+        .provider-connections {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .connection-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .connection-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .connection-status {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #22c55e;
+        }
+        
+        .connection-status.disconnected {
+            background: #ef4444;
+        }
+        
+        .connection-email {
+            font-size: 14px;
+            color: #e2e8f0;
+            font-weight: 500;
+        }
+        
+        .connection-date {
+            font-size: 12px;
+            color: #94a3b8;
+        }
+        
+        .connection-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .connection-btn {
+            background: none;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #e2e8f0;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .connection-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .connection-btn.disconnect {
+            color: #ef4444;
+            border-color: #ef4444;
+        }
+        
+        .connection-btn.disconnect:hover {
+            background: rgba(239, 68, 68, 0.1);
+        }
+        
+        .no-connections {
+            text-align: center;
+            padding: 20px;
+            color: #64748b;
+            font-style: italic;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #64748b;
+            font-style: italic;
+        }
+        
+        .error {
+            text-align: center;
+            padding: 20px;
+            color: #ef4444;
+            font-style: italic;
+        }
+        
+        .connection-status-text {
+            font-size: 12px;
+            font-weight: 500;
+            margin-top: 4px;
+        }
+        
+        .connection-status-text.connected {
+            color: #22c55e;
+        }
+        
+        .connection-status-text.disconnected {
+            color: #ef4444;
+        }
