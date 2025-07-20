@@ -61,6 +61,11 @@ class AuthSystem {
         // Initialize Firebase real-time listeners
         initializeFirebaseListeners();
         
+        // Initialize card encryption for the current user
+        if (this.currentUser && this.currentUser.id) {
+            initializeCardEncryption(this.currentUser.id);
+        }
+        
         // Update user info
         if (this.currentUser) {
             document.getElementById('userName').textContent = this.currentUser.name;
@@ -2819,6 +2824,131 @@ function closeTransactionModal() {
 }
 
 // Credit Card Management
+// AES-256 Encryption using Web Crypto API
+class SecureCardEncryption {
+    constructor() {
+        this.algorithm = 'AES-GCM';
+        this.keyLength = 256;
+        this.ivLength = 12; // 96 bits for GCM
+    }
+
+    // Generate a secure encryption key from user-specific data
+    async generateKey(userSeed) {
+        const encoder = new TextEncoder();
+        const keyMaterial = await crypto.subtle.importKey(
+            'raw',
+            encoder.encode(userSeed),
+            'PBKDF2',
+            false,
+            ['deriveBits', 'deriveKey']
+        );
+
+        // Derive AES-256 key
+        return await crypto.subtle.deriveKey(
+            {
+                name: 'PBKDF2',
+                salt: encoder.encode('dashboard-cards-salt-2024'),
+                iterations: 100000,
+                hash: 'SHA-256'
+            },
+            keyMaterial,
+            { name: 'AES-GCM', length: 256 },
+            false,
+            ['encrypt', 'decrypt']
+        );
+    }
+
+    // Encrypt card data
+    async encrypt(plaintext, userKey) {
+        try {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(plaintext);
+            
+            // Generate random IV
+            const iv = crypto.getRandomValues(new Uint8Array(this.ivLength));
+            
+            // Encrypt
+            const encrypted = await crypto.subtle.encrypt(
+                { name: this.algorithm, iv: iv },
+                userKey,
+                data
+            );
+            
+            // Combine IV and encrypted data
+            const result = new Uint8Array(iv.length + encrypted.byteLength);
+            result.set(iv);
+            result.set(new Uint8Array(encrypted), iv.length);
+            
+            // Return as base64
+            return btoa(String.fromCharCode(...result));
+        } catch (error) {
+            console.error('Encryption error:', error);
+            throw new Error('Failed to encrypt card data');
+        }
+    }
+
+    // Decrypt card data
+    async decrypt(encryptedData, userKey) {
+        try {
+            // Decode from base64
+            const data = new Uint8Array(
+                atob(encryptedData).split('').map(char => char.charCodeAt(0))
+            );
+            
+            // Extract IV and encrypted data
+            const iv = data.slice(0, this.ivLength);
+            const encrypted = data.slice(this.ivLength);
+            
+            // Decrypt
+            const decrypted = await crypto.subtle.decrypt(
+                { name: this.algorithm, iv: iv },
+                userKey,
+                encrypted
+            );
+            
+            // Return as string
+            const decoder = new TextDecoder();
+            return decoder.decode(decrypted);
+        } catch (error) {
+            console.error('Decryption error:', error);
+            throw new Error('Failed to decrypt card data');
+        }
+    }
+}
+
+// Initialize encryption system
+const cardEncryption = new SecureCardEncryption();
+let userEncryptionKey = null;
+
+// Initialize encryption key when user logs in
+async function initializeCardEncryption(userId) {
+    try {
+        // Use consistent seed for same user (no timestamp for key consistency)
+        const userSeed = `${userId}-dashboard-encryption-key-v1`;
+        userEncryptionKey = await cardEncryption.generateKey(userSeed);
+        console.log('🔐 Card encryption key initialized');
+    } catch (error) {
+        console.error('Failed to initialize card encryption:', error);
+    }
+}
+
+// Modern secure encrypt function
+async function secureEncrypt(text) {
+    if (!userEncryptionKey) {
+        throw new Error('Encryption key not initialized');
+    }
+    return await cardEncryption.encrypt(text, userEncryptionKey);
+}
+
+// Modern secure decrypt function
+async function secureDecrypt(encryptedText) {
+    if (!userEncryptionKey) {
+        throw new Error('Decryption key not initialized');
+    }
+    return await cardEncryption.decrypt(encryptedText, userEncryptionKey);
+}
+
+// Legacy functions for backward compatibility (will be replaced)
 function simpleEncrypt(text) {
     // Simple Base64 + Caesar cipher for demo purposes
     // In production, use proper encryption libraries
@@ -2868,12 +2998,30 @@ function formatExpiry(value) {
     return cleaned;
 }
 
-function showCreditCards() {
-    document.getElementById('creditCardsModal').style.display = 'block';
-    renderCreditCards();
+async function showCreditCards() {
+    try {
+        // Require Touch ID authentication to access credit cards
+        console.log('🔐 Requesting Touch ID authentication for credit card access...');
+        
+        const authResult = await window.electronAPI.biometric.authenticate('Access saved credit cards');
+        
+        if (!authResult.success) {
+            alert(`Authentication failed: ${authResult.error || 'Unknown error'}`);
+            return;
+        }
+        
+        console.log('✅ Touch ID authentication successful');
+        
+        document.getElementById('creditCardsModal').style.display = 'block';
+        await renderCreditCards();
+        
+    } catch (error) {
+        console.error('Error accessing credit cards:', error);
+        alert('Failed to access credit cards. Please try again.');
+    }
 }
 
-function renderCreditCards() {
+async function renderCreditCards() {
     const container = document.getElementById('credit-cards-list');
     const creditCards = appData.creditCards || [];
     
@@ -2882,23 +3030,48 @@ function renderCreditCards() {
         return;
     }
     
-    container.innerHTML = creditCards.map(card => {
-        const cardNumber = simpleDecrypt(card.encryptedNumber);
-        const maskedNumber = maskCardNumber(cardNumber);
+    // Render cards with masked numbers only
+    const cardPromises = creditCards.map(async card => {
+        let cardNumber;
+        
+        try {
+            // Handle both new AES-256 and legacy encryption
+            if (card.isSecurelyEncrypted) {
+                // For display purposes, we'll show a generic masked number
+                cardNumber = '****';
+            } else {
+                // Legacy cards can still be decrypted for masking
+                cardNumber = simpleDecrypt(card.encryptedNumber);
+            }
+        } catch (error) {
+            console.error('Error decrypting for display:', error);
+            cardNumber = '****';
+        }
+        
+        const maskedNumber = card.isSecurelyEncrypted ? '**** **** **** ****' : maskCardNumber(cardNumber);
         
         return `
             <div class="credit-card-item">
                 <div class="card-info">
                     <div class="card-name">${card.name}</div>
                     <div class="card-number">${maskedNumber}</div>
+                    ${card.isSecurelyEncrypted ? '<div class="security-badge">🔐 AES-256 Encrypted</div>' : '<div class="security-badge">⚠️ Legacy Encryption</div>'}
                 </div>
                 <div class="card-actions">
-                    <button class="card-action-btn" onclick="showCardDetails(${card.id})">View</button>
+                    <button class="card-action-btn" onclick="showCardDetails(${card.id})">🔐 View</button>
                     <button class="card-action-btn delete" onclick="deleteCard(${card.id})">Delete</button>
                 </div>
             </div>
         `;
-    }).join('');
+    });
+    
+    try {
+        const cardHtmlArray = await Promise.all(cardPromises);
+        container.innerHTML = cardHtmlArray.join('');
+    } catch (error) {
+        console.error('Error rendering credit cards:', error);
+        container.innerHTML = '<div style="text-align: center; color: rgba(255, 255, 255, 0.5); padding: 20px;">Error loading credit cards</div>';
+    }
 }
 
 function showAddCardModal() {
@@ -2910,7 +3083,7 @@ function showAddCardModal() {
     document.getElementById('card-cvv').value = '';
 }
 
-function saveNewCard() {
+async function saveNewCard() {
     const name = document.getElementById('card-name').value.trim();
     const number = document.getElementById('card-number').value.replace(/\s/g, '');
     const expiry = document.getElementById('card-expiry').value;
@@ -2936,12 +3109,27 @@ function saveNewCard() {
         return;
     }
     
+    // Encrypt card data with AES-256
+    let encryptedNumber, encryptedExpiry, encryptedCVV;
+    
+    try {
+        // Use secure AES-256 encryption
+        encryptedNumber = await secureEncrypt(number);
+        encryptedExpiry = await secureEncrypt(expiry);
+        encryptedCVV = await secureEncrypt(cvv);
+    } catch (error) {
+        console.error('Encryption failed:', error);
+        alert('Failed to encrypt card data. Please ensure you are logged in and try again.');
+        return;
+    }
+    
     const newCard = {
         id: Date.now(),
         name: name,
-        encryptedNumber: simpleEncrypt(number),
-        encryptedExpiry: simpleEncrypt(expiry),
-        encryptedCVV: simpleEncrypt(cvv),
+        encryptedNumber: encryptedNumber,
+        encryptedExpiry: encryptedExpiry,
+        encryptedCVV: encryptedCVV,
+        isSecurelyEncrypted: true, // Flag to indicate AES-256 encryption
         addedDate: new Date().toISOString()
     };
     
@@ -2955,15 +3143,145 @@ function saveNewCard() {
     renderCreditCards();
 }
 
-function showCardDetails(cardId) {
+async function showCardDetails(cardId) {
     const card = appData.creditCards.find(c => c.id === cardId);
     if (!card) return;
     
-    const cardNumber = simpleDecrypt(card.encryptedNumber);
-    const expiry = simpleDecrypt(card.encryptedExpiry);
-    const cvv = simpleDecrypt(card.encryptedCVV);
+    try {
+        // Require Touch ID authentication to view card details
+        console.log('🔐 Requesting Touch ID authentication for card access...');
+        
+        const authResult = await window.electronAPI.biometric.authenticate('Access credit card details');
+        
+        if (!authResult.success) {
+            alert(`Authentication failed: ${authResult.error || 'Unknown error'}`);
+            return;
+        }
+        
+        console.log('✅ Touch ID authentication successful');
+        
+        // Decrypt card data using AES-256
+        let cardNumber, expiry, cvv;
+        
+        try {
+            // Try modern AES-256 decryption first
+            if (card.encryptedNumber && card.isSecurelyEncrypted) {
+                cardNumber = await secureDecrypt(card.encryptedNumber);
+                expiry = await secureDecrypt(card.encryptedExpiry);
+                cvv = await secureDecrypt(card.encryptedCVV);
+            } else {
+                // Fallback to legacy decryption for existing cards
+                cardNumber = simpleDecrypt(card.encryptedNumber);
+                expiry = simpleDecrypt(card.encryptedExpiry);
+                cvv = simpleDecrypt(card.encryptedCVV);
+            }
+        } catch (decryptError) {
+            console.error('Decryption failed:', decryptError);
+            alert('Failed to decrypt card data. Please try again.');
+            return;
+        }
+        
+        // Show card details in a secure modal
+        showSecureCardModal(card.name, cardNumber, expiry, cvv, card.addedDate);
+        
+    } catch (error) {
+        console.error('Error showing card details:', error);
+        alert('Failed to access card details. Please try again.');
+    }
+}
+
+// Secure card details modal
+function showSecureCardModal(name, cardNumber, expiry, cvv, addedDate) {
+    const modal = document.createElement('div');
+    modal.className = 'secure-card-modal';
+    modal.innerHTML = `
+        <div class="secure-card-overlay" onclick="closeSecureCardModal()"></div>
+        <div class="secure-card-content">
+            <div class="secure-card-header">
+                <h3>🔐 Secure Card Details</h3>
+                <button class="secure-card-close" onclick="closeSecureCardModal()">×</button>
+            </div>
+            <div class="secure-card-body">
+                <div class="secure-card-field">
+                    <label>Card Name:</label>
+                    <span>${name}</span>
+                </div>
+                <div class="secure-card-field">
+                    <label>Card Number:</label>
+                    <span class="card-number-secure">${formatCardNumber(cardNumber)}</span>
+                    <button class="copy-btn" onclick="copyToClipboard('${cardNumber}')">Copy</button>
+                </div>
+                <div class="secure-card-field">
+                    <label>Expiry Date:</label>
+                    <span>${expiry}</span>
+                    <button class="copy-btn" onclick="copyToClipboard('${expiry}')">Copy</button>
+                </div>
+                <div class="secure-card-field">
+                    <label>CVV:</label>
+                    <span>${cvv}</span>
+                    <button class="copy-btn" onclick="copyToClipboard('${cvv}')">Copy</button>
+                </div>
+                <div class="secure-card-field">
+                    <label>Added:</label>
+                    <span>${new Date(addedDate).toLocaleDateString()}</span>
+                </div>
+            </div>
+            <div class="secure-card-footer">
+                <p>⚠️ This window will auto-close in 30 seconds for security</p>
+            </div>
+        </div>
+    `;
     
-    alert(`Card Details:\n\nName: ${card.name}\nNumber: ${formatCardNumber(cardNumber)}\nExpiry: ${expiry}\nCVV: ${cvv}\n\nAdded: ${new Date(card.addedDate).toLocaleDateString()}`);
+    document.body.appendChild(modal);
+    
+    // Auto-close after 30 seconds for security
+    setTimeout(() => {
+        if (document.body.contains(modal)) {
+            closeSecureCardModal();
+        }
+    }, 30000);
+}
+
+function closeSecureCardModal() {
+    const modal = document.querySelector('.secure-card-modal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+// Copy to clipboard function
+async function copyToClipboard(text) {
+    try {
+        await navigator.clipboard.writeText(text);
+        
+        // Show temporary notification
+        const notification = document.createElement('div');
+        notification.className = 'copy-notification';
+        notification.textContent = '✅ Copied to clipboard';
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(46, 125, 50, 0.9);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 6px;
+            z-index: 10000;
+            font-size: 14px;
+        `;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            if (document.body.contains(notification)) {
+                notification.remove();
+            }
+        }, 2000);
+        
+    } catch (error) {
+        console.error('Failed to copy to clipboard:', error);
+        alert('Failed to copy to clipboard');
+    }
 }
 
 function deleteCard(cardId) {
