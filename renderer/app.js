@@ -58,6 +58,9 @@ class AuthSystem {
         document.getElementById('userInfoBar').style.display = 'flex';
         document.querySelector('.dashboard-container').classList.add('logged-in');
         
+        // Initialize Firebase real-time listeners
+        initializeFirebaseListeners();
+        
         // Update user info
         if (this.currentUser) {
             document.getElementById('userName').textContent = this.currentUser.name;
@@ -268,6 +271,9 @@ function logout() {
     // Clear all localStorage data
     localStorage.removeItem('dashboardUser');
     localStorage.clear();
+    
+    // Clean up Firebase real-time listeners
+    cleanupFirebaseListeners();
     
     // Reset app data
     appData = {
@@ -1360,13 +1366,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     }, 60 * 60 * 1000);
     setInterval(fetchWeather, 30 * 60 * 1000);
     
-    // Auto-refresh data from JSON file every 3 seconds
-    setInterval(async function() {
-        try {
-            await refreshDataFromFile();
-        } catch (error) {
-        }
-    }, 3000);
+    // Initialize Firebase real-time listeners instead of polling
+    initializeFirebaseListeners();
     
     // Add additional event listeners for quick notes
     const quickNotesElement = document.getElementById('quick-notes');
@@ -1748,6 +1749,84 @@ async function refreshDataFromFile() {
     } catch (error) {
         // Silently fail during auto-refresh
     }
+}
+
+// Firebase change detection variables
+let firebaseListener = null;
+let currentUserFile = null;
+
+// Initialize Firebase polling every 5 seconds
+function initializeFirebaseListeners() {
+    if (!authSystem || !authSystem.currentUser) {
+        console.log('No authenticated user - skipping Firebase polling');
+        return;
+    }
+    
+    const userFile = authSystem.getUserFilePath();
+    
+    // If we already have monitoring for this user, don't create another
+    if (firebaseListener && currentUserFile === userFile) {
+        return;
+    }
+    
+    // Clean up existing monitoring
+    cleanupFirebaseListeners();
+    
+    console.log('Setting up Firebase polling for:', userFile);
+    currentUserFile = userFile;
+    
+    // Function to refresh data
+    async function refreshData() {
+        try {
+            if (!authSystem || !authSystem.currentUser) {
+                return;
+            }
+            
+            const response = await fetch(`${FIREBASE_URL}/${userFile}`);
+            if (response.ok) {
+                const firebaseData = await response.json();
+                if (firebaseData) {
+                    // Preserve quick notes if user is currently typing
+                    const quickNotesElement = document.getElementById('quick-notes');
+                    const isTypingNotes = quickNotesElement && (
+                        document.activeElement === quickNotesElement ||
+                        quickNotesElement.matches(':focus')
+                    );
+                    const currentQuickNotes = (isTypingNotes || isPasting) ? appData.quickNotes : null;
+                    
+                    appData = firebaseData;
+                    
+                    if ((isTypingNotes || isPasting) && currentQuickNotes !== null) {
+                        appData.quickNotes = currentQuickNotes;
+                    }
+                    
+                    renderTasks();
+                    updateAllDisplays();
+                }
+            }
+        } catch (error) {
+            console.error('Error refreshing data:', error);
+        }
+    }
+    
+    // Load data immediately
+    refreshData();
+    
+    // Poll every 5 seconds
+    firebaseListener = setInterval(refreshData, 5000);
+    
+    console.log('🚀 Firebase polling initialized - checking every 5 seconds');
+}
+
+// Clean up Firebase listeners when user logs out
+function cleanupFirebaseListeners() {
+    if (firebaseListener) {
+        console.log('🧹 Cleaning up Firebase polling');
+        clearInterval(firebaseListener);
+        firebaseListener = null;
+    }
+    
+    currentUserFile = null;
 }
 
 function updateAllDisplays() {
@@ -2157,7 +2236,10 @@ function navigateDate(direction) {
     renderTasks();
 }
 
-function renderTasks() {
+let lastTasksRender = '';
+let lastTasksData = null;
+
+function renderTasks(forceUpdate = false) {
     const dateKey = getDateKey(todoViewDate);
     let currentTasks = appData.tasks[dateKey] || [];
     const container = document.getElementById('tasks-container');
@@ -2166,6 +2248,28 @@ function renderTasks() {
     if (Object.keys(activeFilters).length > 0) {
         currentTasks = applyTaskFilters(currentTasks, dateKey);
     }
+    
+    // Create a hash of the task data to check for changes
+    const dataHash = JSON.stringify({
+        dateKey,
+        tasks: currentTasks.map(t => ({ 
+            id: t.id, 
+            text: t.text, 
+            completed: t.completed, 
+            priority: t.priority,
+            assigned: t.assigned
+        })),
+        filters: activeFilters
+    });
+    
+    // Only update if data has changed or forcing update
+    if (!forceUpdate && dataHash === lastTasksRender) {
+        return;
+    }
+    
+    // Store the current data hash
+    lastTasksRender = dataHash;
+    lastTasksData = currentTasks;
     
     
     if (currentTasks.length === 0) {
@@ -2414,12 +2518,17 @@ function openInChrome(url) {
 }
 
 // Recent Transactions functions
-async function renderTransactions() {
+let lastTransactionsData = null;
+let lastTransactionsRender = '';
+
+async function renderTransactions(forceUpdate = false) {
     const container = document.getElementById('transactions-list');
     if (!container) return;
     
-    // Show loading state
-    container.innerHTML = '<div style="text-align: center; color: rgba(255, 255, 255, 0.5); padding: 20px; font-size: 12px;">Loading transactions...</div>';
+    // Skip if transactions section is not visible and not forcing update
+    if (container.style.display === 'none' && !forceUpdate) {
+        return;
+    }
     
     try {
         // Get current user
@@ -2451,6 +2560,24 @@ async function renderTransactions() {
         
         // Get recent transactions (limit to 10)
         const recentTransactions = transactions.slice(0, 10);
+        
+        // Create a hash of the transaction data to check for changes
+        const dataHash = JSON.stringify(recentTransactions.map(t => ({ 
+            id: t.id, 
+            amount: t.amount, 
+            type: t.type, 
+            timestamp: t.timestamp || t.date,
+            description: t.description || t.merchant || t.emailSubject
+        })));
+        
+        // Only update if data has changed
+        if (!forceUpdate && dataHash === lastTransactionsRender) {
+            return;
+        }
+        
+        // Store the current data hash
+        lastTransactionsRender = dataHash;
+        lastTransactionsData = recentTransactions;
         
         if (recentTransactions.length === 0) {
             container.innerHTML = '<div style="text-align: center; color: rgba(255, 255, 255, 0.5); padding: 20px; font-size: 12px;">No recent transactions</div>';
@@ -2540,7 +2667,7 @@ async function toggleTransactions() {
                     arrow.textContent = '▲';
                     
                     // Load transactions after successful authentication
-                    await renderTransactions();
+                    await renderTransactions(true);
                 } else {
                     container.innerHTML = '<div style="text-align: center; color: rgba(255, 255, 255, 0.5); padding: 20px; font-size: 12px;">❌ Authentication failed</div>';
                     setTimeout(() => {
@@ -2561,7 +2688,7 @@ async function toggleTransactions() {
             container.style.display = 'block';
             arrow.classList.add('expanded');
             arrow.textContent = '▲';
-            await renderTransactions();
+            await renderTransactions(true);
         }
     } else {
         container.style.display = 'none';
