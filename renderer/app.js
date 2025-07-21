@@ -2127,8 +2127,9 @@ function saveTaskNote() {
             task.note = document.getElementById('task-note-content').value;
             task.status = document.getElementById('task-status-select').value;
             task.noteUpdatedAt = new Date().toISOString();
-            renderTasks();
+            
             saveDataToStorage();
+            renderTasks();
         }
     }
     closeTaskNoteModal();
@@ -2307,7 +2308,14 @@ function renderTasks(forceUpdate = false) {
             text: t.text, 
             completed: t.completed, 
             priority: t.priority,
-            assigned: t.assigned
+            assigned: t.assigned,
+            status: t.status,
+            note: t.note,
+            noteUpdatedAt: t.noteUpdatedAt,
+            issues: t.issues,
+            appreciation: t.appreciation,
+            fromPreviousDate: t.fromPreviousDate,
+            originalDate: t.originalDate
         })),
         filters: activeFilters
     });
