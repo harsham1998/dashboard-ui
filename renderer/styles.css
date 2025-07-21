@@ -1329,6 +1329,97 @@
             border-left: 3px solid #22c55e;
         }
 
+        .feedback-item.subtask {
+            border-left: 3px solid #3b82f6;
+        }
+
+        .subtasks-container {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .subtasks-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .subtasks-container::-webkit-scrollbar-track {
+            background: rgba(71, 85, 105, 0.1);
+            border-radius: 3px;
+        }
+
+        .subtasks-container::-webkit-scrollbar-thumb {
+            background: rgba(71, 85, 105, 0.4);
+            border-radius: 3px;
+        }
+
+        .subtasks-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(71, 85, 105, 0.6);
+        }
+
+        .subtask-item {
+            background: rgba(71, 85, 105, 0.2);
+            border-radius: 8px;
+            padding: 8px 12px;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            border-left: 3px solid #3b82f6;
+        }
+
+        .subtask-checkbox {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #64748b;
+            border-radius: 3px;
+            background: transparent;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .subtask-checkbox.checked {
+            background: #3b82f6;
+            border-color: #3b82f6;
+        }
+
+        .subtask-checkbox.checked::after {
+            content: '✓';
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .subtask-text {
+            flex: 1;
+            color: #e2e8f0;
+            transition: all 0.2s;
+        }
+
+        .subtask-text.completed {
+            text-decoration: line-through;
+            color: #64748b;
+        }
+
+        .subtask-count {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 11px;
+            color: #3b82f6;
+        }
+
+        /* Subtask count badge in task list */
+        .count-badge.subtask-count {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            color: #3b82f6;
+        }
+
         .feedback-remove {
             background: transparent;
             border: none;

@@ -2155,10 +2155,26 @@ function addTask() {
     }
 }
 
-function toggleTask(dateKey, taskId) {
+function toggleTask(dateKey, taskId, checkboxElement = null) {
     if (appData.tasks[dateKey]) {
         const task = appData.tasks[dateKey].find(t => t.id === taskId);
         if (task) {
+            // If trying to complete the main task, check if all subtasks are completed
+            if (!task.completed && task.subtasks && task.subtasks.length > 0) {
+                const pendingSubtasks = task.subtasks.filter(s => !s.completed);
+                if (pendingSubtasks.length > 0) {
+                    alert(`Cannot complete this task yet. Please complete all ${pendingSubtasks.length} pending subtasks first.`);
+                    
+                    // Uncheck the checkbox directly if element is provided
+                    if (checkboxElement) {
+                        checkboxElement.checked = false;
+                    }
+                    
+                    return;
+                }
+            }
+            
+            // Toggle the task completion status
             task.completed = !task.completed;
             renderTasks();
             saveDataToStorage();
@@ -2317,7 +2333,7 @@ function openTaskNote(dateKey, taskId) {
                 `<option value="${status}" ${status === currentStatus ? 'selected' : ''}>${status.charAt(0).toUpperCase() + status.slice(1)}</option>`
             ).join('');
             
-            // Populate issues and appreciation
+            // Populate issues, subtasks, and appreciation
             renderModalFeedback(task);
             
             document.getElementById('taskNoteModal').style.display = 'block';
@@ -2336,6 +2352,23 @@ function renderModalFeedback(task) {
             <button class="feedback-remove" onclick="removeIssue(${index})">×</button>
         </div>
     `).join('');
+    
+    // Render subtasks
+    const subtasksList = document.getElementById('subtasks-list');
+    const subtasks = task.subtasks || [];
+    subtasksList.innerHTML = subtasks.map((subtask, index) => `
+        <div class="subtask-item">
+            <div class="subtask-checkbox ${subtask.completed ? 'checked' : ''}" 
+                 onclick="toggleSubtask(${index})"></div>
+            <span class="subtask-text ${subtask.completed ? 'completed' : ''}">${subtask.text}</span>
+            <button class="feedback-remove" onclick="removeSubtask(${index})">×</button>
+        </div>
+    `).join('');
+    
+    // Update subtask count
+    const pendingCount = subtasks.filter(s => !s.completed).length;
+    const completedCount = subtasks.filter(s => s.completed).length;
+    document.getElementById('subtask-count').textContent = `(${pendingCount} pending, ${completedCount} completed)`;
     
     // Render appreciation
     const appreciationList = document.getElementById('appreciation-list');
@@ -2403,12 +2436,61 @@ function removeAppreciation(index) {
     }
 }
 
+function addSubtask() {
+    const input = document.getElementById('new-subtask-input');
+    const subtaskText = input.value.trim();
+    if (subtaskText && currentTaskForNote) {
+        const { dateKey, taskId } = currentTaskForNote;
+        const task = appData.tasks[dateKey].find(t => t.id === taskId);
+        if (task) {
+            if (!task.subtasks) task.subtasks = [];
+            task.subtasks.push({
+                text: subtaskText,
+                completed: false,
+                createdAt: new Date().toISOString()
+            });
+            input.value = '';
+            renderModalFeedback(task);
+            renderTasks(); // Update task list to show new counts
+            saveDataToStorage();
+        }
+    }
+}
+
+function toggleSubtask(index) {
+    if (currentTaskForNote) {
+        const { dateKey, taskId } = currentTaskForNote;
+        const task = appData.tasks[dateKey].find(t => t.id === taskId);
+        if (task && task.subtasks && task.subtasks[index]) {
+            task.subtasks[index].completed = !task.subtasks[index].completed;
+            task.subtasks[index].completedAt = task.subtasks[index].completed ? new Date().toISOString() : null;
+            renderModalFeedback(task);
+            renderTasks(); // Update task list to show new counts
+            saveDataToStorage();
+        }
+    }
+}
+
+function removeSubtask(index) {
+    if (currentTaskForNote) {
+        const { dateKey, taskId } = currentTaskForNote;
+        const task = appData.tasks[dateKey].find(t => t.id === taskId);
+        if (task && task.subtasks) {
+            task.subtasks.splice(index, 1);
+            renderModalFeedback(task);
+            renderTasks(); // Update task list to show new counts
+            saveDataToStorage();
+        }
+    }
+}
+
 function closeTaskNoteModal() {
     document.getElementById('taskNoteModal').style.display = 'none';
     currentTaskForNote = null;
     
     // Clear inputs
     document.getElementById('new-issue-input').value = '';
+    document.getElementById('new-subtask-input').value = '';
     document.getElementById('new-appreciation-input').value = '';
     document.getElementById('task-title-input').value = '';
     
@@ -2614,6 +2696,7 @@ function renderTasks(forceUpdate = false) {
             note: t.note,
             noteUpdatedAt: t.noteUpdatedAt,
             issues: t.issues,
+            subtasks: t.subtasks,
             appreciation: t.appreciation,
             fromPreviousDate: t.fromPreviousDate,
             originalDate: t.originalDate
@@ -2651,7 +2734,7 @@ function renderTasks(forceUpdate = false) {
                     <div class="task-left">
                         <div class="task-main">
                             <input type="checkbox" class="task-checkbox" ${task.completed ? 'checked' : ''} 
-                                   onchange="toggleTask('${taskDateKey}', ${task.id})">
+                                   onchange="toggleTask('${taskDateKey}', ${task.id}, this)">
                             <span class="task-text ${task.completed ? 'completed' : ''}" 
                                   draggable="true" 
                                   ondragstart="dragTask(event, '${taskDateKey}', ${task.id})" 
@@ -2698,6 +2781,7 @@ function renderTasks(forceUpdate = false) {
                             </div>
                             <div class="task-meta-right">
                                 <div class="task-counts">
+                                    ${(task.subtasks?.length || 0) > 0 ? `<span class="count-badge subtask-count">✅ ${task.subtasks.filter(s => s.completed).length}/${task.subtasks.length}</span>` : ''}
                                     ${(task.issues?.length || 0) > 0 ? `<span class="count-badge issues-count">🚨 ${task.issues.length}</span>` : ''}
                                     ${(task.appreciation?.length || 0) > 0 ? `<span class="count-badge appreciation-count">👏 ${task.appreciation.length}</span>` : ''}
                                 </div>

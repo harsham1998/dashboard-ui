@@ -420,6 +420,21 @@
                 <textarea id="task-note-content" class="modal-textarea" placeholder="Add notes for this task..."></textarea>
             </div>
             
+            <!-- Subtasks Section -->
+            <div class="feedback-section">
+                <div class="feedback-header">
+                    <h4 style="color: #3b82f6; font-size: 14px;">✅ Subtasks</h4>
+                    <span id="subtask-count" style="color: #64748b; font-size: 12px;">(0 pending, 0 completed)</span>
+                </div>
+                <div class="feedback-list subtasks-container" id="subtasks-list">
+                    <!-- Subtasks will be populated here -->
+                </div>
+                <div class="add-feedback">
+                    <input type="text" id="new-subtask-input" class="feedback-input" placeholder="Add a new subtask..." />
+                    <button class="add-feedback-btn" onclick="addSubtask()">Add Subtask</button>
+                </div>
+            </div>
+            
             <!-- Issues Section -->
             <div class="feedback-section">
                 <div class="feedback-header">
@@ -433,7 +448,7 @@
                     <button class="add-feedback-btn" onclick="addIssue()">Add Issue</button>
                 </div>
             </div>
-            
+
             <!-- Appreciation Section -->
             <div class="feedback-section">
                 <div class="feedback-header">
