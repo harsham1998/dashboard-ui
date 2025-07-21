@@ -68,8 +68,11 @@ class AuthSystem {
         
         // Update user info
         if (this.currentUser) {
-            document.getElementById('userName').textContent = this.currentUser.name;
-            document.getElementById('userAvatar').textContent = this.currentUser.name.charAt(0).toUpperCase();
+            const userNameEl = document.getElementById('userName');
+            const userAvatarEl = document.getElementById('userAvatar');
+            
+            if (userNameEl) userNameEl.textContent = this.currentUser.name;
+            if (userAvatarEl) userAvatarEl.textContent = this.currentUser.name.charAt(0).toUpperCase();
             
             // Update profile info
             updateProfileInfo();
@@ -1536,12 +1539,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     // Initialize authentication system
     authSystem = new AuthSystem();
     
-    // Only render UI if user is authenticated
-    if (authSystem.currentUser) {
-        renderQuickLinks();
-        renderTasks();
-        renderImportantFeed();
-    }
+    // Wait for authentication to complete before checking user
+    // The init() method in AuthSystem handles user loading and UI updates
     initializeFilterModal();
     fetchWeather();
     
@@ -2310,7 +2309,13 @@ function openTaskNote(dateKey, taskId) {
             currentTaskForNote = { dateKey, taskId };
             document.getElementById('task-title-input').value = task.text;
             document.getElementById('task-note-content').value = task.note || '';
-            document.getElementById('task-status-select').value = task.status || 'pending';
+            
+            // Populate status dropdown with dynamic options
+            const statusSelect = document.getElementById('task-status-select');
+            const currentStatus = task.status || 'pending';
+            statusSelect.innerHTML = (appData.taskStatuses || ['pending']).map(status => 
+                `<option value="${status}" ${status === currentStatus ? 'selected' : ''}>${status.charAt(0).toUpperCase() + status.slice(1)}</option>`
+            ).join('');
             
             // Populate issues and appreciation
             renderModalFeedback(task);
