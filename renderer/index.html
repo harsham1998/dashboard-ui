@@ -492,11 +492,18 @@
                 </div>
                 
                 <div class="filter-group">
-                    <label class="filter-label">Person:</label>
-                    <select id="filter-person" class="modal-select">
-                        <option value="">All People</option>
-                        <!-- Will be populated with team members -->
-                    </select>
+                    <label class="filter-label">Team Members:</label>
+                    <div class="team-filter-container">
+                        <div class="team-filter-dropdown-btn" id="team-filter-btn" onclick="toggleTeamFilterDropdown()">
+                            <span id="team-filter-display">All Team Members</span>
+                            <span class="dropdown-arrow">▼</span>
+                        </div>
+                        <div class="team-filter-dropdown" id="team-filter-dropdown" style="display: none;">
+                            <div class="team-filter-options" id="team-filter-options">
+                                <!-- Will be populated with team member checkboxes -->
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
                 <div class="filter-group">
@@ -521,6 +528,16 @@
                 <div class="filter-group">
                     <label class="filter-label">Min Issue Count:</label>
                     <input type="number" id="filter-min-issues" class="modal-input" placeholder="e.g., 1" min="0" />
+                </div>
+                
+                <div class="filter-group">
+                    <label class="filter-label">Include Options:</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="filter-include-completed" class="filter-checkbox">
+                            <span class="checkbox-text">Include completed tasks</span>
+                        </label>
+                    </div>
                 </div>
             </div>
             

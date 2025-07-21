@@ -415,11 +415,32 @@ function closeProfileModal() {
 function updateProfileInfo() {
     if (authSystem && authSystem.currentUser) {
         const user = authSystem.currentUser;
-        const profileNameEl = document.getElementById('profile-name');
-        const profileAvatarEl = document.getElementById('profile-avatar');
         
-        if (profileNameEl) profileNameEl.textContent = user.name;
-        if (profileAvatarEl) profileAvatarEl.textContent = user.name.charAt(0).toUpperCase();
+        // Function to update profile elements
+        const updateElements = () => {
+            const profileNameEl = document.getElementById('profile-name');
+            const profileAvatarEl = document.getElementById('profile-avatar');
+            
+            if (profileNameEl) {
+                profileNameEl.textContent = user.name;
+            }
+            if (profileAvatarEl) {
+                profileAvatarEl.textContent = user.name.charAt(0).toUpperCase();
+            }
+            
+            // Also update user info bar elements
+            const userNameEl = document.getElementById('userName');
+            const userAvatarEl = document.getElementById('userAvatar');
+            
+            if (userNameEl) userNameEl.textContent = user.name;
+            if (userAvatarEl) userAvatarEl.textContent = user.name.charAt(0).toUpperCase();
+        };
+        
+        // Try to update immediately
+        updateElements();
+        
+        // Also try again after a short delay in case elements weren't ready
+        setTimeout(updateElements, 100);
         
         // Load team management interface
         renderTeamMembers();
@@ -449,6 +470,9 @@ function renderTeamMembers() {
             ${member.includes('(Me)') ? '' : `<button class="remove-btn" onclick="removeTeamMember(${index})">Remove</button>`}
         </div>
     `).join('');
+    
+    // Update filter options whenever team members change
+    populateTeamFilter();
 }
 
 function addTeamMember() {
@@ -1541,6 +1565,14 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     // Wait for authentication to complete before checking user
     // The init() method in AuthSystem handles user loading and UI updates
+    
+    // Ensure profile info is updated after DOM is ready
+    if (authSystem && authSystem.currentUser) {
+        setTimeout(() => {
+            updateProfileInfo();
+        }, 200);
+    }
+    
     initializeFilterModal();
     fetchWeather();
     
@@ -2549,20 +2581,58 @@ function performSearch() {
     }
     
     const searchResults = [];
+    let tasksToSearch = [];
     
-    // Search through all dates and tasks
-    Object.keys(appData.tasks).forEach(dateKey => {
-        appData.tasks[dateKey].forEach(task => {
+    // Determine which tasks to search based on active filters
+    if (Object.keys(activeFilters).length > 0) {
+        // If filters are active, search only in filtered results
+        const dateKey = getDateKey(todoViewDate);
+        let currentTasks = [];
+        
+        // Get tasks for current date
+        const todayTasks = appData.tasks[dateKey] || [];
+        
+        // Get tasks from previous dates based on includeCompleted filter
+        Object.keys(appData.tasks).forEach(key => {
+            if (key !== dateKey) {
+                const taskDate = new Date(key);
+                const today = new Date(dateKey);
+                
+                if (taskDate < today) {
+                    const previousTasks = appData.tasks[key] || [];
+                    const shouldIncludeCompleted = activeFilters.includeCompleted;
+                    const previousTasksToShow = shouldIncludeCompleted ? 
+                        previousTasks : 
+                        previousTasks.filter(task => !task.completed);
+                    currentTasks = currentTasks.concat(previousTasksToShow.map(task => ({
+                        ...task,
+                        fromPreviousDate: true,
+                        originalDate: key
+                    })));
+                }
+            }
+        });
+        
+        // Add today's tasks
+        currentTasks = currentTasks.concat(todayTasks);
+        
+        // Apply filters to get the filtered task list
+        tasksToSearch = applyTaskFilters(currentTasks, dateKey);
+        
+        // Convert to search format with dateKey information
+        tasksToSearch.forEach(task => {
+            const taskDateKey = task.originalDate || dateKey;
             if (task.text.toLowerCase().includes(searchTerm) || 
                 (task.note && task.note.toLowerCase().includes(searchTerm)) ||
-                task.assignee.toLowerCase().includes(searchTerm) ||
-                task.status.toLowerCase().includes(searchTerm) ||
+                (task.assignees && task.assignees.some(assignee => assignee.toLowerCase().includes(searchTerm))) ||
+                (task.assignee && task.assignee.toLowerCase().includes(searchTerm)) ||
+                (task.status && task.status.toLowerCase().includes(searchTerm)) ||
                 (task.issues && task.issues.some(issue => issue.toLowerCase().includes(searchTerm))) ||
                 (task.appreciation && task.appreciation.some(app => app.toLowerCase().includes(searchTerm)))) {
                 searchResults.push({
                     task: task,
-                    dateKey: dateKey,
-                    date: new Date(dateKey).toLocaleDateString('en-US', {
+                    dateKey: taskDateKey,
+                    date: new Date(taskDateKey).toLocaleDateString('en-US', {
                         month: 'short',
                         day: 'numeric',
                         year: 'numeric'
@@ -2570,7 +2640,30 @@ function performSearch() {
                 });
             }
         });
-    });
+    } else {
+        // If no filters are active, search through all dates and tasks globally
+        Object.keys(appData.tasks).forEach(dateKey => {
+            appData.tasks[dateKey].forEach(task => {
+                if (task.text.toLowerCase().includes(searchTerm) || 
+                    (task.note && task.note.toLowerCase().includes(searchTerm)) ||
+                    (task.assignees && task.assignees.some(assignee => assignee.toLowerCase().includes(searchTerm))) ||
+                    (task.assignee && task.assignee.toLowerCase().includes(searchTerm)) ||
+                    (task.status && task.status.toLowerCase().includes(searchTerm)) ||
+                    (task.issues && task.issues.some(issue => issue.toLowerCase().includes(searchTerm))) ||
+                    (task.appreciation && task.appreciation.some(app => app.toLowerCase().includes(searchTerm)))) {
+                    searchResults.push({
+                        task: task,
+                        dateKey: dateKey,
+                        date: new Date(dateKey).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                        })
+                    });
+                }
+            });
+        });
+    }
     
     if (searchResults.length === 0) {
         resultsContainer.innerHTML = `
@@ -2652,9 +2745,12 @@ function renderTasks(forceUpdate = false) {
             // Only add if the task date is before today
             if (taskDate < today) {
                 const previousTasks = appData.tasks[key] || [];
-                // Add only uncompleted tasks from previous dates
-                const uncompletedPreviousTasks = previousTasks.filter(task => !task.completed);
-                currentTasks = currentTasks.concat(uncompletedPreviousTasks.map(task => ({
+                // Add tasks from previous dates - include completed if filter is active
+                const shouldIncludeCompleted = activeFilters.includeCompleted;
+                const previousTasksToShow = shouldIncludeCompleted ? 
+                    previousTasks : 
+                    previousTasks.filter(task => !task.completed);
+                currentTasks = currentTasks.concat(previousTasksToShow.map(task => ({
                     ...task,
                     fromPreviousDate: true,
                     originalDate: key
@@ -2810,27 +2906,87 @@ function renderTasks(forceUpdate = false) {
 
 // Filter functionality
 function initializeFilterModal() {
-    // Populate team members in filter
-    const filterPersonSelect = document.getElementById('filter-person');
-    if (filterPersonSelect) {
-        const teamMembers = (appData && appData.teamMembers) || [];
-        filterPersonSelect.innerHTML = `
-            <option value="">All People</option>
-            ${teamMembers.map(member => `<option value="${member}">${member}</option>`).join('')}
-        `;
+    // Populate team members in multi-select filter
+    populateTeamFilter();
+}
+
+function populateTeamFilter() {
+    const container = document.getElementById('team-filter-options');
+    if (!container) return;
+    
+    const teamMembers = (appData && appData.teamMembers) || [];
+    
+    container.innerHTML = teamMembers.map(member => `
+        <div class="team-filter-option">
+            <input type="checkbox" id="team-filter-${member.replace(/[^a-zA-Z0-9]/g, '')}" 
+                   value="${member}" onchange="updateTeamFilterDisplay()">
+            <label for="team-filter-${member.replace(/[^a-zA-Z0-9]/g, '')}">${member}</label>
+        </div>
+    `).join('');
+}
+
+function toggleTeamFilterDropdown() {
+    const dropdown = document.getElementById('team-filter-dropdown');
+    const isVisible = dropdown.style.display !== 'none';
+    
+    if (isVisible) {
+        dropdown.style.display = 'none';
+    } else {
+        dropdown.style.display = 'block';
+        // Close when clicking outside
+        setTimeout(() => {
+            document.addEventListener('click', closeTeamFilterOnOutside, { once: true });
+        }, 100);
     }
+}
+
+function closeTeamFilterOnOutside(event) {
+    const container = document.querySelector('.team-filter-container');
+    if (!container.contains(event.target)) {
+        document.getElementById('team-filter-dropdown').style.display = 'none';
+    }
+}
+
+function updateTeamFilterDisplay() {
+    const checkboxes = document.querySelectorAll('#team-filter-options input[type="checkbox"]:checked');
+    const displaySpan = document.getElementById('team-filter-display');
+    
+    if (checkboxes.length === 0) {
+        displaySpan.textContent = 'All Team Members';
+    } else if (checkboxes.length === 1) {
+        displaySpan.textContent = checkboxes[0].value;
+    } else {
+        displaySpan.textContent = `${checkboxes.length} members selected`;
+    }
+}
+
+function getSelectedTeamMembers() {
+    const checkboxes = document.querySelectorAll('#team-filter-options input[type="checkbox"]:checked');
+    return Array.from(checkboxes).map(cb => cb.value);
 }
 
 function openFilterModal() {
     document.getElementById('filterModal').style.display = 'block';
     
+    // Populate team filter first
+    populateTeamFilter();
+    
     // Populate current filter values
     document.getElementById('filter-status').value = activeFilters.status || '';
-    document.getElementById('filter-person').value = activeFilters.person || '';
     document.getElementById('filter-date-from').value = activeFilters.dateFrom || '';
     document.getElementById('filter-date-to').value = activeFilters.dateTo || '';
     document.getElementById('filter-feedback').value = activeFilters.feedback || '';
     document.getElementById('filter-min-issues').value = activeFilters.minIssues || '';
+    document.getElementById('filter-include-completed').checked = activeFilters.includeCompleted || false;
+    
+    // Restore selected team members
+    if (activeFilters.teamMembers) {
+        activeFilters.teamMembers.forEach(member => {
+            const checkbox = document.querySelector(`#team-filter-options input[value="${member}"]`);
+            if (checkbox) checkbox.checked = true;
+        });
+        updateTeamFilterDisplay();
+    }
     
     // Fix date inputs after modal opens
     setTimeout(() => {
@@ -2856,18 +3012,21 @@ function closeFilterModal() {
 }
 
 function applyFilters() {
+    const selectedTeamMembers = getSelectedTeamMembers();
+    
     activeFilters = {
         status: document.getElementById('filter-status').value,
-        person: document.getElementById('filter-person').value,
+        teamMembers: selectedTeamMembers.length > 0 ? selectedTeamMembers : null,
         dateFrom: document.getElementById('filter-date-from').value,
         dateTo: document.getElementById('filter-date-to').value,
         feedback: document.getElementById('filter-feedback').value,
-        minIssues: parseInt(document.getElementById('filter-min-issues').value) || 0
+        minIssues: parseInt(document.getElementById('filter-min-issues').value) || 0,
+        includeCompleted: document.getElementById('filter-include-completed').checked
     };
     
-    // Remove empty filters
+    // Remove empty filters (but keep boolean false values for includeCompleted)
     Object.keys(activeFilters).forEach(key => {
-        if (!activeFilters[key] && activeFilters[key] !== 0) {
+        if (!activeFilters[key] && activeFilters[key] !== 0 && activeFilters[key] !== false) {
             delete activeFilters[key];
         }
     });
@@ -2891,11 +3050,16 @@ function clearFilters() {
     
     // Reset form
     document.getElementById('filter-status').value = '';
-    document.getElementById('filter-person').value = '';
     document.getElementById('filter-date-from').value = '';
     document.getElementById('filter-date-to').value = '';
     document.getElementById('filter-feedback').value = '';
     document.getElementById('filter-min-issues').value = '';
+    document.getElementById('filter-include-completed').checked = false;
+    
+    // Reset team member checkboxes
+    const teamCheckboxes = document.querySelectorAll('#team-filter-options input[type="checkbox"]');
+    teamCheckboxes.forEach(cb => cb.checked = false);
+    updateTeamFilterDisplay();
     
     // Update filter button
     const filterBtn = document.getElementById('filter-btn');
@@ -2940,9 +3104,15 @@ function applyTaskFilters(tasks) {
             return false;
         }
         
-        // Person filter
-        if (activeFilters.person && task.assignee !== activeFilters.person) {
-            return false;
+        // Team members filter - check if any selected member is assigned to the task
+        if (activeFilters.teamMembers && activeFilters.teamMembers.length > 0) {
+            const taskAssignees = task.assignees || (task.assignee ? [task.assignee] : []);
+            const hasSelectedMember = activeFilters.teamMembers.some(selectedMember => 
+                taskAssignees.includes(selectedMember)
+            );
+            if (!hasSelectedMember) {
+                return false;
+            }
         }
         
         // Feedback type filter
@@ -2961,6 +3131,11 @@ function applyTaskFilters(tasks) {
             if (issueCount < activeFilters.minIssues) {
                 return false;
             }
+        }
+        
+        // Completion status filter - exclude completed tasks unless specifically requested
+        if (!activeFilters.includeCompleted && task.completed) {
+            return false;
         }
         
         return true;
