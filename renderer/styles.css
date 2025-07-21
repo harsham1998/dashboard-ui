@@ -349,10 +349,59 @@
         }
 
         /* Quick Links */
+        .quick-links-header-search {
+            width: 120px;
+            background: rgba(71, 85, 105, 0.3);
+            border: 1px solid rgba(71, 85, 105, 0.4);
+            border-radius: 4px;
+            padding: 4px 8px;
+            color: #e2e8f0;
+            font-size: 11px;
+            outline: none;
+        }
+        
+        .quick-links-header-search::placeholder {
+            color: #64748b;
+        }
+        
+        .quick-links-header-search:focus {
+            border-color: rgba(59, 130, 246, 0.5);
+            background: rgba(71, 85, 105, 0.4);
+        }
+        
+        .quick-links-container {
+            /* Calculate height for exactly 2 rows: (item height + gap) * 2 - gap */
+            /* Each quick-link is roughly 46px tall + 8px gap = 54px per row */
+            max-height: 100px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+        }
+        
+        .quick-links-container::-webkit-scrollbar {
+            width: 4px;
+        }
+        .quick-links-container::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+        }
+        .quick-links-container::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 2px;
+        }
+        .quick-links-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+        
         .quick-links {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 8px;
+        }
+        
+        .quick-link.hidden {
+            display: none;
         }
 
         /* Recent Transactions */
@@ -370,6 +419,7 @@
             justify-content: space-between;
             align-items: center;
             padding: 12px 16px;
+            margin-bottom: 10px;
             background: rgba(255, 255, 255, 0.1);
             border-radius: 8px;
             border-left: 4px solid;
@@ -696,6 +746,22 @@
             flex: 1;
             overflow-y: auto;
             margin-bottom: 16px;
+            max-height: 480px;
+        }
+        
+        .tasks-list::-webkit-scrollbar {
+            width: 4px;
+        }
+        .tasks-list::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+        }
+        .tasks-list::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 2px;
+        }
+        .tasks-list::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
         }
 
         .task-item {
@@ -755,6 +821,15 @@
         .task-text.completed {
             color: #94a3b8;
             text-decoration: line-through;
+        }
+        
+        .task-item .task-checkbox:checked ~ .task-text {
+            opacity: 0.7;
+        }
+        
+        .task-item:has(.task-checkbox:checked) {
+            opacity: 0.8;
+            order: 999;
         }
 
         .task-meta {
@@ -961,11 +1036,28 @@
         /* Important Feed */
         .important-feed {
             min-height: 120px;
+            max-height: 310px;
+            overflow-y: auto;
             background: rgba(251, 191, 36, 0.1);
             border: 2px dashed rgba(251, 191, 36, 0.3);
             border-radius: 10px;
             padding: 12px;
             transition: all 0.3s ease;
+        }
+        
+        .important-feed::-webkit-scrollbar {
+            width: 4px;
+        }
+        .important-feed::-webkit-scrollbar-track {
+            background: rgba(251, 191, 36, 0.1);
+            border-radius: 2px;
+        }
+        .important-feed::-webkit-scrollbar-thumb {
+            background: rgba(251, 191, 36, 0.4);
+            border-radius: 2px;
+        }
+        .important-feed::-webkit-scrollbar-thumb:hover {
+            background: rgba(251, 191, 36, 0.6);
         }
 
         .important-feed.drag-over {
@@ -1495,7 +1587,7 @@
         /* Notification styles */
         .notification {
             position: fixed;
-            top: 20px;
+            top: 40px !important;
             right: 20px;
             background: rgba(15, 23, 42, 0.95);
             border: 1px solid rgba(71, 85, 105, 0.3);
@@ -1595,6 +1687,16 @@
         .transaction-item:hover {
             background: rgba(255, 255, 255, 0.15);
             transform: translateY(-1px);
+        }
+        
+        /* Previous date tasks styling */
+        .previous-date-task {
+            border-left: 3px solid #f59e0b !important;
+            background: rgba(245, 158, 11, 0.1) !important;
+        }
+        
+        .previous-date-task .task-text {
+            color: rgba(255, 255, 255, 0.8);
         }
 
         /* Collapse arrow */

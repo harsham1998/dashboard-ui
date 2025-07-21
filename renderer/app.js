@@ -1251,7 +1251,7 @@ function showNotification(message, type = 'success') {
     
     notification.style.cssText = `
         position: fixed;
-        top: 20px;
+        top: 40px;
         right: 20px;
         background: ${colors[type] || colors.success};
         color: white;
@@ -2012,7 +2012,7 @@ function openTaskNote(dateKey, taskId) {
         const task = appData.tasks[dateKey].find(t => t.id === taskId);
         if (task) {
             currentTaskForNote = { dateKey, taskId };
-            document.getElementById('task-modal-title').textContent = task.text;
+            document.getElementById('task-title-input').value = task.text;
             document.getElementById('task-note-content').value = task.note || '';
             document.getElementById('task-status-select').value = task.status || 'programming';
             
@@ -2109,6 +2109,7 @@ function closeTaskNoteModal() {
     // Clear inputs
     document.getElementById('new-issue-input').value = '';
     document.getElementById('new-appreciation-input').value = '';
+    document.getElementById('task-title-input').value = '';
     
 }
 
@@ -2117,6 +2118,12 @@ function saveTaskNote() {
         const { dateKey, taskId } = currentTaskForNote;
         const task = appData.tasks[dateKey].find(t => t.id === taskId);
         if (task) {
+            // Update task name if changed
+            const newTaskName = document.getElementById('task-title-input').value.trim();
+            if (newTaskName && newTaskName !== task.text) {
+                task.text = newTaskName;
+            }
+            
             task.note = document.getElementById('task-note-content').value;
             task.status = document.getElementById('task-status-select').value;
             task.noteUpdatedAt = new Date().toISOString();
@@ -2246,7 +2253,45 @@ let lastTasksData = null;
 
 function renderTasks(forceUpdate = false) {
     const dateKey = getDateKey(todoViewDate);
-    let currentTasks = appData.tasks[dateKey] || [];
+    let currentTasks = [];
+    
+    // Get tasks for current date
+    const todayTasks = appData.tasks[dateKey] || [];
+    
+    // Get uncompleted tasks from previous dates only
+    Object.keys(appData.tasks).forEach(key => {
+        // Skip current date - we'll add those separately
+        if (key !== dateKey) {
+            const taskDate = new Date(key);
+            const today = new Date(dateKey);
+            
+            // Only add if the task date is before today
+            if (taskDate < today) {
+                const previousTasks = appData.tasks[key] || [];
+                // Add only uncompleted tasks from previous dates
+                const uncompletedPreviousTasks = previousTasks.filter(task => !task.completed);
+                currentTasks = currentTasks.concat(uncompletedPreviousTasks.map(task => ({
+                    ...task,
+                    fromPreviousDate: true,
+                    originalDate: key
+                })));
+            }
+        }
+    });
+    
+    // Add today's tasks (both completed and uncompleted)
+    currentTasks = currentTasks.concat(todayTasks);
+    
+    // Sort tasks: incomplete tasks first, then completed tasks at the bottom
+    currentTasks.sort((a, b) => {
+        // If one is completed and the other isn't, sort by completion status
+        if (a.completed !== b.completed) {
+            return a.completed ? 1 : -1; // Completed tasks go to bottom (1), incomplete stay at top (-1)
+        }
+        // If both have same completion status, maintain original order (stable sort)
+        return 0;
+    });
+    
     const container = document.getElementById('tasks-container');
     
     // Apply filters if any are active
@@ -2288,23 +2333,26 @@ function renderTasks(forceUpdate = false) {
         `;
         document.getElementById('progress-section').style.display = 'none';
     } else {
-        container.innerHTML = currentTasks.map(task => `
-            <div class="task-item" draggable="true" ondragstart="dragTask(event, '${dateKey}', ${task.id})">
+        container.innerHTML = currentTasks.map(task => {
+            const taskDateKey = task.originalDate || dateKey;
+            const isFromPrevious = task.fromPreviousDate;
+            return `
+            <div class="task-item ${isFromPrevious ? 'previous-date-task' : ''}" draggable="true" ondragstart="dragTask(event, '${taskDateKey}', ${task.id})">
                 <div class="task-content">
                     <div class="task-left">
                         <div class="task-main">
                             <input type="checkbox" class="task-checkbox" ${task.completed ? 'checked' : ''} 
-                                   onchange="toggleTask('${dateKey}', ${task.id})">
-                            <span class="task-text ${task.completed ? 'completed' : ''}" onclick="openTaskNote('${dateKey}', ${task.id})" title="Click to add/edit notes and feedback">${task.text}</span>
+                                   onchange="toggleTask('${taskDateKey}', ${task.id})">
+                            <span class="task-text ${task.completed ? 'completed' : ''}" onclick="openTaskNote('${taskDateKey}', ${task.id})" title="Click to add/edit notes and feedback">${task.text}${isFromPrevious ? ` <small style="color: rgba(255,255,255,0.5);">(from ${new Date(task.originalDate).toLocaleDateString()})</small>` : ''}</span>
                         </div>
                         <div class="task-meta">
                             <div class="task-meta-left">
-                                <select class="task-status" onchange="changeTaskStatus('${dateKey}', ${task.id}, this.value)">
+                                <select class="task-status" onchange="changeTaskStatus('${taskDateKey}', ${task.id}, this.value)">
                                     ${Object.keys(statusConfig).map(status => 
                                         `<option value="${status}" ${task.status === status ? 'selected' : ''}>${statusConfig[status].label}</option>`
                                     ).join('')}
                                 </select>
-                                <select class="task-assign" onchange="assignTask('${dateKey}', ${task.id}, this.value)">
+                                <select class="task-assign" onchange="assignTask('${taskDateKey}', ${task.id}, this.value)">
                                     ${appData.teamMembers.map(member => 
                                         `<option value="${member}" ${task.assignee === member ? 'selected' : ''}>${member}</option>`
                                     ).join('')}
@@ -2315,14 +2363,15 @@ function renderTasks(forceUpdate = false) {
                                     ${(task.issues?.length || 0) > 0 ? `<span class="count-badge issues-count">🚨 ${task.issues.length}</span>` : ''}
                                     ${(task.appreciation?.length || 0) > 0 ? `<span class="count-badge appreciation-count">👏 ${task.appreciation.length}</span>` : ''}
                                 </div>
-                                <button class="task-action-btn" onclick="deleteTask('${dateKey}', ${task.id})" title="Delete Task">🗑️</button>
+                                <button class="task-action-btn" onclick="deleteTask('${taskDateKey}', ${task.id})" title="Delete Task">🗑️</button>
                             </div>
                         </div>
                         ${task.note ? `<div class="task-note">"${task.note.substring(0, 60)}${task.note.length > 60 ? '...' : ''}"</div>` : ''}
                     </div>
                 </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
         
         // Update progress
         const completed = currentTasks.filter(t => t.completed).length;
@@ -2553,7 +2602,11 @@ async function renderTransactions(forceUpdate = false) {
         let transactions = [];
         if (response.ok) {
             const transactionData = await response.json();
-            transactions = Array.isArray(transactionData) ? transactionData : [];
+            
+            if (transactionData) {
+                // Handle both encrypted and legacy unencrypted transactions
+                transactions = await decryptTransactionsForUI(transactionData);
+            }
         }
         
         // Sort transactions by date (most recent first)
@@ -2563,8 +2616,9 @@ async function renderTransactions(forceUpdate = false) {
             return dateB - dateA;
         });
         
-        // Get recent transactions (limit to 10)
-        const recentTransactions = transactions.slice(0, 10);
+        // Filter out read transactions and get recent transactions (limit to 10)
+        const unreadTransactions = transactions.filter(t => !t.read);
+        const recentTransactions = unreadTransactions.slice(0, 10);
         
         // Create a hash of the transaction data to check for changes
         const dataHash = JSON.stringify(recentTransactions.map(t => ({ 
@@ -2572,7 +2626,7 @@ async function renderTransactions(forceUpdate = false) {
             amount: t.amount, 
             type: t.type, 
             timestamp: t.timestamp || t.date,
-            description: t.description || t.merchant || t.emailSubject
+            description: t.merchant || t.description || t.emailSubject
         })));
         
         // Only update if data has changed
@@ -2590,40 +2644,70 @@ async function renderTransactions(forceUpdate = false) {
         }
         
         container.innerHTML = recentTransactions.map(transaction => {
-            // Safely extract transaction data with fallbacks
-            const timestamp = transaction.timestamp || transaction.date || transaction.emailDate || new Date().toISOString();
+            // Use new transaction structure from ML extraction
+            const timestamp = transaction.timestamp || transaction.date || new Date().toISOString();
             const timeAgo = getTimeAgo(timestamp);
             
-            // Determine transaction type and sign
-            const type = transaction.type || (transaction.amount > 0 ? 'credited' : 'debited');
-            const sign = type === 'credited' || type === 'credit' ? '+' : '-';
+            // Format date for display - only show if valid
+            let dateDisplay = '';
+            if (transaction.date && transaction.date !== 'Invalid Date' && transaction.date.match(/\d{2}-\d{2}-\d{2}/)) {
+                dateDisplay = transaction.date;
+            } else if (timestamp && timestamp !== 'Invalid Date') {
+                try {
+                    const date = new Date(timestamp);
+                    if (!isNaN(date.getTime())) {
+                        dateDisplay = date.toLocaleDateString('en-GB', {
+                            day: '2-digit',
+                            month: '2-digit', 
+                            year: '2-digit'
+                        });
+                    }
+                } catch (e) {
+                    // Don't show invalid dates
+                }
+            }
+            
+            // Use credit_or_debit from new structure
+            const creditOrDebit = transaction.credit_or_debit || 'debit';
+            const isCredit = creditOrDebit === 'credit';
+            const sign = isCredit ? '+' : '-';
+            const colorClass = isCredit ? 'credited' : 'debited';
             
             // Format amount safely
             const amount = transaction.amount || 0;
             const amountDisplay = `${sign}₹${Math.abs(amount).toLocaleString()}`;
             
-            // Get description with fallbacks
-            const description = transaction.description || transaction.merchant || transaction.emailSubject || 'Transaction';
+            // Get merchant name (not description)
+            const merchant = transaction.merchant || 'Unknown';
             
-            // Get account/mode info
-            const mode = transaction.mode || transaction.account || transaction.bank || 'Unknown';
+            // Get account info - use to_account for credits, account_number for debits
+            const accountInfo = isCredit ? 
+                (transaction.to_account || transaction.account_number) : 
+                (transaction.from_account || transaction.account_number);
+            const accountDisplay = accountInfo ? `A/c ${accountInfo}` : 'Unknown Account';
+            
+            // Get mode (UPI, NEFT, etc.)
+            const mode = transaction.mode || 'Unknown';
             
             // Get source info
-            const source = transaction.source || (transaction.emailFrom ? 'Email' : 'Manual');
+            const source = transaction.email_from ? 'Auto-detected' : 'Manual';
             
             return `
-                <div class="transaction-item ${type}" onclick="showTransactionDetails('${transaction.id}')">
+                <div class="transaction-item" onclick="showTransactionDetails('${transaction.id}')">
                     <div class="transaction-main">
-                        <div class="transaction-amount ${type}">${amountDisplay}</div>
+                        <div class="transaction-amount ${colorClass}">${amountDisplay}</div>
                         <div class="transaction-details">
-                            <div class="transaction-desc">${description}</div>
+                            <div class="transaction-merchant">${merchant}</div>
                             <div class="transaction-meta">
-                                <span class="transaction-mode">${mode}</span>
+                                <span class="transaction-account">${accountDisplay}</span>
+                                <span class="transaction-mode">• ${mode}</span>
                                 <span class="transaction-source">• ${source}</span>
                             </div>
                         </div>
                     </div>
-                    <div class="transaction-time">${timeAgo}</div>
+                    <div class="transaction-time">
+                        ${dateDisplay ? `<div style="font-size: 11px; color: rgba(255,255,255,0.5);">${dateDisplay}</div>` : ''}
+                    </div>
                 </div>
             `;
         }).join('');
@@ -2733,55 +2817,65 @@ async function showTransactionDetails(transactionId) {
     
     currentTransactionId = transactionId;
     
-    // Safely extract transaction data
-    const type = transaction.type || (transaction.amount > 0 ? 'credited' : 'debited');
-    const sign = type === 'credited' || type === 'credit' ? '+' : '-';
+    // Use new transaction structure
+    const creditOrDebit = transaction.credit_or_debit || 'debit';
+    const isCredit = creditOrDebit === 'credit';
+    const sign = isCredit ? '+' : '-';
     const amount = transaction.amount || 0;
     const amountDisplay = `${sign}₹${Math.abs(amount).toLocaleString()}`;
+    const colorClass = isCredit ? 'credited' : 'debited';
     
-    // Get all available data with fallbacks
-    const description = transaction.description || transaction.merchant || transaction.emailSubject || 'Transaction';
-    const bank = transaction.bank || transaction.account || 'Unknown Bank';
-    const mode = transaction.mode || transaction.paymentMethod || 'Unknown';
-    const date = transaction.date || transaction.timestamp || transaction.emailDate || new Date().toISOString();
-    const reference = transaction.reference || transaction.id || 'N/A';
-    const source = transaction.source || (transaction.emailFrom ? 'Email Detection' : 'Manual Entry');
+    // Get all available data with new format
+    const merchant = transaction.merchant || 'Unknown Merchant';
+    const description = transaction.description || 'Transaction processed';
+    const accountInfo = isCredit ? 
+        (transaction.to_account || transaction.account_number || 'Unknown Account') :
+        (transaction.from_account || transaction.account_number || 'Unknown Account');
+    const mode = transaction.mode || 'Unknown';
+    const date = transaction.date || new Date().toISOString();
+    const reference = transaction.reference_number || transaction.id || 'N/A';
+    const emailFrom = transaction.email_from || 'Manual Entry';
+    const category = transaction.category || 'other';
+    const currency = transaction.currency || 'INR';
     
     const detailsHtml = `
-        <div class="transaction-amount-large ${type}">
+        <div class="transaction-amount-large ${colorClass}">
             ${amountDisplay}
         </div>
         
         <div class="transaction-detail-row">
             <span class="transaction-detail-label">Type:</span>
-            <span class="transaction-detail-value">${type.charAt(0).toUpperCase() + type.slice(1)}</span>
+            <span class="transaction-detail-value">${creditOrDebit.charAt(0).toUpperCase() + creditOrDebit.slice(1)}</span>
         </div>
         
         <div class="transaction-detail-row">
-            <span class="transaction-detail-label">Description:</span>
-            <span class="transaction-detail-value">${description}</span>
+            <span class="transaction-detail-label">Merchant:</span>
+            <span class="transaction-detail-value">${merchant}</span>
         </div>
         
         <div class="transaction-detail-row">
-            <span class="transaction-detail-label">Bank/Account:</span>
-            <span class="transaction-detail-value">${bank}</span>
+            <span class="transaction-detail-label">Account:</span>
+            <span class="transaction-detail-value">${accountInfo}</span>
         </div>
         
         <div class="transaction-detail-row">
             <span class="transaction-detail-label">Payment Mode:</span>
-            <span class="transaction-detail-value">${mode}</span>
+            <span class="transaction-detail-value">${mode.toUpperCase()}</span>
         </div>
         
-        ${transaction.balance ? `
         <div class="transaction-detail-row">
-            <span class="transaction-detail-label">Balance:</span>
-            <span class="transaction-detail-value">₹${transaction.balance.toLocaleString()}</span>
+            <span class="transaction-detail-label">Category:</span>
+            <span class="transaction-detail-value">${category.charAt(0).toUpperCase() + category.slice(1)}</span>
         </div>
-        ` : ''}
         
         <div class="transaction-detail-row">
-            <span class="transaction-detail-label">Date & Time:</span>
-            <span class="transaction-detail-value">${new Date(date).toLocaleString()}</span>
+            <span class="transaction-detail-label">Currency:</span>
+            <span class="transaction-detail-value">${currency}</span>
+        </div>
+        
+        <div class="transaction-detail-row">
+            <span class="transaction-detail-label">Date:</span>
+            <span class="transaction-detail-value">${date}</span>
         </div>
         
         <div class="transaction-detail-row">
@@ -2789,15 +2883,11 @@ async function showTransactionDetails(transactionId) {
             <span class="transaction-detail-value">${reference}</span>
         </div>
         
-        <div class="transaction-detail-row">
-            <span class="transaction-detail-label">Source:</span>
-            <span class="transaction-detail-value">${source}</span>
-        </div>
         
-        ${transaction.rawMessage || transaction.emailSubject ? `
+        ${transaction.description && transaction.description !== 'Transaction processed' ? `
         <div class="transaction-detail-row">
-            <span class="transaction-detail-label">Details:</span>
-            <span class="transaction-detail-value" style="font-size: 12px; color: rgba(255, 255, 255, 0.7);">${transaction.rawMessage || transaction.emailSubject || ''}</span>
+            <span class="transaction-detail-label">Description:</span>
+            <span class="transaction-detail-value" style="font-size: 12px; color: rgba(255, 255, 255, 0.7);">${transaction.description}</span>
         </div>
         ` : ''}
     `;
@@ -2806,15 +2896,43 @@ async function showTransactionDetails(transactionId) {
     document.getElementById('transactionModal').style.display = 'block';
 }
 
-function markTransactionAsRead() {
+async function markTransactionAsRead() {
     if (!currentTransactionId) return;
     
-    const transaction = appData.transactions.find(t => t.id === currentTransactionId);
-    if (transaction) {
-        transaction.isRead = true;
-        saveDataToStorage();
+    try {
+        // Mark as read in local appData
+        const transactionIndex = appData.transactions.findIndex(t => t.id === currentTransactionId);
+        if (transactionIndex !== -1) {
+            appData.transactions[transactionIndex].read = true;
+            saveDataToStorage();
+        }
+        
+        // Mark as read in Firebase if user is authenticated
+        if (authSystem.currentUser && authSystem.currentUser.id) {
+            const response = await fetch(`${FIREBASE_URL}/${authSystem.currentUser.id}/transactions.json`);
+            if (response.ok) {
+                const transactions = await response.json();
+                if (Array.isArray(transactions)) {
+                    const fbTransactionIndex = transactions.findIndex(t => t.id === currentTransactionId);
+                    if (fbTransactionIndex !== -1) {
+                        transactions[fbTransactionIndex].read = true;
+                        // Update the entire transactions array
+                        await fetch(`${FIREBASE_URL}/${authSystem.currentUser.id}/transactions.json`, {
+                            method: 'PUT',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify(transactions)
+                        });
+                    }
+                }
+            }
+        }
+        
         closeTransactionModal();
         renderTransactions();
+    } catch (error) {
+        console.error('Error marking transaction as read:', error);
+        // Still close modal even if update fails
+        closeTransactionModal();
     }
 }
 
@@ -2972,6 +3090,76 @@ function simpleDecrypt(encryptedText) {
         console.error('Decryption error:', error);
         return 'Error decrypting';
     }
+}
+
+// Transaction decryption functions for ML integration
+async function decryptTransactionsForUI(transactionData) {
+    const transactions = [];
+    
+    if (!transactionData) return transactions;
+    
+    // Handle both object (Firebase structure) and array formats
+    const transactionEntries = Array.isArray(transactionData) 
+        ? transactionData.map((item, index) => [index.toString(), item])
+        : Object.entries(transactionData);
+    
+    for (const [firebaseKey, transaction] of transactionEntries) {
+        try {
+            if (transaction && typeof transaction === 'object') {
+                if (transaction.encrypted_transaction) {
+                    // This is an encrypted transaction from ML system
+                    try {
+                        const decryptedData = JSON.parse(await secureDecrypt(transaction.encrypted_transaction));
+                        transactions.push({
+                            ...decryptedData,
+                            firebase_key: firebaseKey,
+                            encrypted: true,
+                            timestamp: transaction.timestamp,
+                            ml_processed: true
+                        });
+                    } catch (decryptError) {
+                        console.warn(`Failed to decrypt transaction ${firebaseKey}:`, decryptError);
+                        // Add placeholder for failed decryption
+                        transactions.push({
+                            firebase_key: firebaseKey,
+                            id: firebaseKey,
+                            amount: 0,
+                            merchant: 'Encrypted Transaction',
+                            description: 'Decryption failed',
+                            type: 'unknown',
+                            timestamp: transaction.timestamp || new Date().toISOString(),
+                            encrypted: true,
+                            decryption_error: true,
+                            amount_preview: transaction.amount_preview || 'N/A',
+                            merchant_preview: transaction.merchant_preview || 'Unknown'
+                        });
+                    }
+                } else {
+                    // Legacy unencrypted transaction
+                    transactions.push({
+                        ...transaction,
+                        firebase_key: firebaseKey,
+                        encrypted: false,
+                        ml_processed: false
+                    });
+                }
+            }
+        } catch (error) {
+            console.error(`Error processing transaction ${firebaseKey}:`, error);
+        }
+    }
+    
+    return transactions;
+}
+
+// Enhanced transaction encryption for ML data
+async function encryptTransactionForStorage(transactionData) {
+    if (!userEncryptionKey) {
+        throw new Error('Encryption key not initialized');
+    }
+    
+    const jsonData = JSON.stringify(transactionData);
+    return await secureEncrypt(jsonData);
 }
 
 function maskCardNumber(cardNumber) {
@@ -3347,6 +3535,43 @@ function deleteQuickLink(linkId) {
     }
 }
 
+function searchQuickLinks() {
+    const searchTerm = document.getElementById('search-links-input').value.toLowerCase().trim();
+    const linkElements = document.querySelectorAll('.quick-link');
+    
+    if (searchTerm === '') {
+        showAllQuickLinks();
+        return;
+    }
+    
+    linkElements.forEach(linkElement => {
+        const linkText = linkElement.textContent.toLowerCase();
+        const linkContent = linkElement.querySelector('.link-content span:last-child');
+        const linkName = linkContent ? linkContent.textContent.toLowerCase() : '';
+        
+        if (linkName.includes(searchTerm) || linkText.includes(searchTerm)) {
+            linkElement.classList.remove('hidden');
+        } else {
+            linkElement.classList.add('hidden');
+        }
+    });
+}
+
+function showAllQuickLinks() {
+    const linkElements = document.querySelectorAll('.quick-link');
+    linkElements.forEach(linkElement => {
+        linkElement.classList.remove('hidden');
+    });
+}
+
+function handleQuickLinksSearch(event) {
+    // Clear search on Escape key
+    if (event.key === 'Escape') {
+        document.getElementById('search-links-input').value = '';
+        showAllQuickLinks();
+    }
+}
+
 // Important Feed functions
 function renderImportantFeed() {
     const container = document.getElementById('important-list');
@@ -3510,6 +3735,62 @@ function navigateToImportantTask(originalTaskId, originalDate) {
         }, 100);
         
     }
+}
+
+function toggleImportantFeed() {
+    const container = document.getElementById('important-feed');
+    const arrow = document.getElementById('important-arrow');
+    
+    if (container.style.display === 'none') {
+        container.style.display = 'block';
+        arrow.classList.add('expanded');
+        arrow.textContent = '▲';
+    } else {
+        container.style.display = 'none';
+        arrow.classList.remove('expanded');
+        arrow.textContent = '▼';
+    }
+}
+
+function clearImportantFeed() {
+    if (appData.importantFeed.length === 0) {
+        alert('Important Feed is already empty!');
+        return;
+    }
+    
+    if (confirm(`Are you sure you want to clear all ${appData.importantFeed.length} important items?`)) {
+        appData.importantFeed = [];
+        renderImportantFeed();
+        saveDataToStorage();
+        alert('Important Feed cleared successfully!');
+    }
+}
+
+function exportImportantFeed() {
+    if (appData.importantFeed.length === 0) {
+        alert('Important Feed is empty. Nothing to export.');
+        return;
+    }
+    
+    const exportData = {
+        exportDate: new Date().toISOString(),
+        totalItems: appData.importantFeed.length,
+        importantItems: appData.importantFeed
+    };
+    
+    const dataStr = JSON.stringify(exportData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `important-feed-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    alert(`Exported ${appData.importantFeed.length} important items successfully!`);
 }
 
 // System Trash function

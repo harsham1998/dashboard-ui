@@ -4,7 +4,10 @@
       "Bash(ls:*)",
       "Bash(chmod:*)",
       "Bash(./create-launch-agent.sh:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(python3:*)",
+      "Bash(grep:*)",
+      "Bash(curl:*)"
     ],
     "deny": []
   }

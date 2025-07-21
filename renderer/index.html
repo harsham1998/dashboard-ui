@@ -137,10 +137,19 @@
                 <div class="card">
                     <div class="section-title">
                         <span><span class="section-icon">🔗</span> Quick Links</span>
+                        <div class="section-actions">
+                            <input type="text" id="search-links-input" class="quick-links-header-search" placeholder="Search..." 
+                                   oninput="searchQuickLinks()" onkeyup="handleQuickLinksSearch(event)">
+                        </div>
                     </div>
-                    <div class="quick-links" id="quick-links-list">
-                        <!-- Quick links will be populated by JavaScript -->
+                    
+                    <!-- Scrollable Quick Links Container -->
+                    <div class="quick-links-container">
+                        <div class="quick-links" id="quick-links-list">
+                            <!-- Quick links will be populated by JavaScript -->
+                        </div>
                     </div>
+                    
                     <button class="add-link-btn" onclick="addQuickLink()">
                         <span>➕</span>
                         Add Link
@@ -248,8 +257,13 @@
 
                 <!-- Important Feed -->
                 <div class="card" style="flex: 1;">
-                    <div class="section-title">
-                        <span><span class="section-icon">⭐</span> Important Feed</span>
+                    <div class="section-title" style="cursor: pointer;">
+                        <span onclick="toggleImportantFeed()"><span class="section-icon">⭐</span> Important Feed</span>
+                        <div class="section-actions">
+                            <button class="section-btn" onclick="clearImportantFeed()" title="Clear All Important Items">🗑️</button>
+                            <button class="section-btn" onclick="exportImportantFeed()" title="Export Important Feed">📤</button>
+                            <span class="collapse-arrow" id="important-arrow" onclick="toggleImportantFeed()">▼</span>
+                        </div>
                     </div>
                     <div 
                         class="important-feed" 
@@ -382,8 +396,10 @@
                 <h3 class="modal-title">Task Details</h3>
                 <button class="close-btn" onclick="closeTaskNoteModal()">&times;</button>
             </div>
-            <div style="margin-bottom: 12px;">
-                <strong id="task-modal-title">Task Title</strong>
+            <!-- Editable Task Title -->
+            <div style="margin-bottom: 16px;">
+                <label class="filter-label">Task Name:</label>
+                <input type="text" id="task-title-input" class="modal-input" placeholder="Enter task name...">
             </div>
             
             <!-- Status Selection -->
