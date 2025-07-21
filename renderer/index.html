@@ -630,6 +630,39 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Master Console Section -->
+            <div class="master-console">
+                <h4 class="console-title">🎛️ Master Console</h4>
+                
+                <!-- Team Management -->
+                <div class="console-section">
+                    <h5 class="console-subtitle">👥 Team Members</h5>
+                    <div class="team-management">
+                        <div class="add-member-section">
+                            <input type="text" id="new-member-name" class="modal-input" placeholder="Enter team member name...">
+                            <button class="console-btn" onclick="addTeamMember()">Add Member</button>
+                        </div>
+                        <div class="team-list" id="team-members-list">
+                            <!-- Team members will be populated here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Status Management -->
+                <div class="console-section">
+                    <h5 class="console-subtitle">📊 Task Statuses</h5>
+                    <div class="status-management">
+                        <div class="add-status-section">
+                            <input type="text" id="new-status-name" class="modal-input" placeholder="Enter status name...">
+                            <button class="console-btn" onclick="addTaskStatus()">Add Status</button>
+                        </div>
+                        <div class="status-list" id="task-statuses-list">
+                            <!-- Task statuses will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
             <div class="modal-actions">
                 <button class="modal-btn cancel" onclick="closeProfileModal()">Close</button>
             </div>

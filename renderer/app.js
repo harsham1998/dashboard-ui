@@ -397,6 +397,10 @@ function openProfile() {
     document.getElementById('profile-created-at').value = createdAt;
     document.getElementById('profile-last-login').value = lastLogin;
     
+    // Load team management interface with existing data
+    renderTeamMembers();
+    renderTaskStatuses();
+    
     modal.style.display = 'block';
 }
 
@@ -406,11 +410,183 @@ function closeProfileModal() {
 
 // Update profile info when user logs in
 function updateProfileInfo() {
-    if (authSystem.currentUser) {
+    if (authSystem && authSystem.currentUser) {
         const user = authSystem.currentUser;
-        document.getElementById('profile-name').textContent = user.name;
-        document.getElementById('profile-avatar').textContent = user.name.charAt(0).toUpperCase();
+        const profileNameEl = document.getElementById('profile-name');
+        const profileAvatarEl = document.getElementById('profile-avatar');
+        
+        if (profileNameEl) profileNameEl.textContent = user.name;
+        if (profileAvatarEl) profileAvatarEl.textContent = user.name.charAt(0).toUpperCase();
+        
+        // Load team management interface
+        renderTeamMembers();
+        renderTaskStatuses();
     }
+}
+
+// Team Management Functions
+function renderTeamMembers() {
+    const container = document.getElementById('team-members-list');
+    if (!container) return;
+    
+    // Ensure teamMembers exists
+    if (!appData || !appData.teamMembers) {
+        container.innerHTML = '<div style="text-align: center; color: #64748b; font-size: 12px; padding: 12px;">Loading team members...</div>';
+        return;
+    }
+    
+    if (appData.teamMembers.length === 0) {
+        container.innerHTML = '<div style="text-align: center; color: #64748b; font-size: 12px; padding: 12px;">No team members added yet</div>';
+        return;
+    }
+    
+    container.innerHTML = appData.teamMembers.map((member, index) => `
+        <div class="team-member-item">
+            <span class="member-name">${member}</span>
+            ${member.includes('(Me)') ? '' : `<button class="remove-btn" onclick="removeTeamMember(${index})">Remove</button>`}
+        </div>
+    `).join('');
+}
+
+function addTeamMember() {
+    const input = document.getElementById('new-member-name');
+    const memberName = input.value.trim();
+    
+    if (!memberName) {
+        alert('Please enter a team member name');
+        return;
+    }
+    
+    // Ensure teamMembers exists
+    if (!appData.teamMembers) {
+        appData.teamMembers = [];
+    }
+    
+    if (appData.teamMembers.includes(memberName)) {
+        alert('Team member already exists');
+        return;
+    }
+    
+    appData.teamMembers.push(memberName);
+    input.value = '';
+    renderTeamMembers();
+    updateAllTeamDropdowns();
+    saveDataToStorage();
+    showNotification(`Added team member: ${memberName}`);
+}
+
+function removeTeamMember(index) {
+    if (!appData.teamMembers || !appData.teamMembers[index]) return;
+    const memberName = appData.teamMembers[index];
+    if (confirm(`Remove ${memberName} from team?`)) {
+        appData.teamMembers.splice(index, 1);
+        renderTeamMembers();
+        updateAllTeamDropdowns();
+        saveDataToStorage();
+        showNotification(`Removed team member: ${memberName}`);
+    }
+}
+
+// Task Status Management Functions
+function renderTaskStatuses() {
+    const container = document.getElementById('task-statuses-list');
+    if (!container) return;
+    
+    // Ensure taskStatuses exists
+    if (!appData || !appData.taskStatuses) {
+        container.innerHTML = '<div style="text-align: center; color: #64748b; font-size: 12px; padding: 12px;">Loading task statuses...</div>';
+        return;
+    }
+    
+    if (appData.taskStatuses.length === 0) {
+        container.innerHTML = '<div style="text-align: center; color: #64748b; font-size: 12px; padding: 12px;">No task statuses defined</div>';
+        return;
+    }
+    
+    container.innerHTML = appData.taskStatuses.map((status, index) => `
+        <div class="status-item">
+            <span class="status-name">${status.charAt(0).toUpperCase() + status.slice(1)}</span>
+            ${status === 'pending' ? '' : `<button class="remove-btn" onclick="removeTaskStatus(${index})">Remove</button>`}
+        </div>
+    `).join('');
+}
+
+function addTaskStatus() {
+    const input = document.getElementById('new-status-name');
+    const statusName = input.value.trim().toLowerCase();
+    
+    if (!statusName) {
+        alert('Please enter a status name');
+        return;
+    }
+    
+    // Ensure taskStatuses exists
+    if (!appData.taskStatuses) {
+        appData.taskStatuses = ['pending'];
+    }
+    
+    if (appData.taskStatuses.includes(statusName)) {
+        alert('Status already exists');
+        return;
+    }
+    
+    appData.taskStatuses.push(statusName);
+    input.value = '';
+    renderTaskStatuses();
+    updateAllStatusDropdowns();
+    saveDataToStorage();
+    showNotification(`Added status: ${statusName}`);
+}
+
+function removeTaskStatus(index) {
+    if (!appData.taskStatuses || !appData.taskStatuses[index]) return;
+    const statusName = appData.taskStatuses[index];
+    if (confirm(`Remove "${statusName}" status? This may affect existing tasks.`)) {
+        appData.taskStatuses.splice(index, 1);
+        renderTaskStatuses();
+        updateAllStatusDropdowns();
+        saveDataToStorage();
+        showNotification(`Removed status: ${statusName}`);
+    }
+}
+
+// Update all dropdowns when team/status changes
+function updateAllTeamDropdowns() {
+    // Update filter dropdown
+    const filterPersonSelect = document.getElementById('filter-person');
+    if (filterPersonSelect) {
+        const teamMembers = appData.teamMembers || [];
+        filterPersonSelect.innerHTML = `
+            <option value="">All People</option>
+            ${teamMembers.map(member => `<option value="${member}">${member}</option>`).join('')}
+        `;
+    }
+}
+
+function updateAllStatusDropdowns() {
+    const taskStatuses = appData.taskStatuses || ['pending'];
+    
+    // Update task status select in modal
+    const taskStatusSelect = document.getElementById('task-status-select');
+    if (taskStatusSelect) {
+        const currentValue = taskStatusSelect.value;
+        taskStatusSelect.innerHTML = taskStatuses.map(status => 
+            `<option value="${status}" ${currentValue === status ? 'selected' : ''}>${status.charAt(0).toUpperCase() + status.slice(1)}</option>`
+        ).join('');
+    }
+    
+    // Update filter status dropdown
+    const filterStatusSelect = document.getElementById('filter-status');
+    if (filterStatusSelect) {
+        const currentValue = filterStatusSelect.value;
+        filterStatusSelect.innerHTML = `
+            <option value="">All Statuses</option>
+            ${taskStatuses.map(status => `<option value="${status}" ${currentValue === status ? 'selected' : ''}>${status.charAt(0).toUpperCase() + status.slice(1)}</option>`).join('')}
+        `;
+    }
+    
+    // Force re-render of tasks to update inline dropdowns
+    renderTasks(true);
 }
 
 // Gmail Configuration - Secrets should be set via environment variables
@@ -1322,14 +1498,22 @@ const specialEvents = {
     '12-31': 'New Year\'s Eve 🎆'
 };
 
-// Status colors and labels
-const statusConfig = {
-    programming: { label: 'Programming', color: '#3b82f6' },
-    discussion: { label: 'Discussion', color: '#a855f7' },
-    pretest: { label: 'PreTest', color: '#fbbf24' },
-    test: { label: 'Test', color: '#f97316' },
-    live: { label: 'Live', color: '#22c55e' }
-};
+// Dynamic status colors and labels
+function getStatusConfig() {
+    const defaultColors = ['#64748b', '#3b82f6', '#a855f7', '#fbbf24', '#f97316', '#22c55e', '#ef4444', '#06b6d4', '#84cc16', '#f59e0b'];
+    const config = {};
+    
+    if (appData.taskStatuses) {
+        appData.taskStatuses.forEach((status, index) => {
+            config[status] = {
+                label: status.charAt(0).toUpperCase() + status.slice(1),
+                color: defaultColors[index % defaultColors.length]
+            };
+        });
+    }
+    
+    return config;
+}
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async function() {
@@ -1686,6 +1870,7 @@ function getDefaultAppData() {
             { id: 2, name: 'GitHub', url: 'https://github.com' }
         ],
         teamMembers: ['Harsha (Me)', 'Ujjawal', 'Arun', 'Sanskar', 'Thombre', 'Sakshi', 'Soumi', 'Ayush', 'Aditya', 'Sankalp'],
+        taskStatuses: ['pending', 'programming', 'discussion', 'pretest', 'test', 'live'], // Default statuses with "pending" first
         transactions: [
             // Add a placeholder to prevent Firebase from removing empty array
             { _placeholder: true }
@@ -1707,6 +1892,16 @@ function cleanupAppData() {
     if (!appData.creditCards) appData.creditCards = [];
     if (!appData.transactions) appData.transactions = [];
     if (!appData.importantFeed) appData.importantFeed = [];
+    if (!appData.teamMembers) appData.teamMembers = [];
+    if (!appData.taskStatuses) appData.taskStatuses = ['pending', 'programming', 'discussion', 'pretest', 'test', 'live'];
+    
+    // Ensure current user is in team members if not already
+    if (authSystem && authSystem.currentUser && authSystem.currentUser.name) {
+        const userEntry = `${authSystem.currentUser.name} (Me)`;
+        if (!appData.teamMembers.includes(userEntry)) {
+            appData.teamMembers.unshift(userEntry);
+        }
+    }
     
     // Remove placeholder from tasks
     if (appData.tasks._placeholder) {
@@ -1943,8 +2138,8 @@ function addTask() {
             id: Date.now(),
             text: taskText,
             completed: false,
-            assignee: 'Harsha (Me)',
-            status: 'programming',
+            assignees: [authSystem.currentUser ? `${authSystem.currentUser.name} (Me)` : 'Harsha (Me)'],
+            status: 'pending',
             note: '',
             issues: [],
             appreciation: [],
@@ -1985,11 +2180,112 @@ function deleteTask(dateKey, taskId) {
     }
 }
 
+// Multiple Assignee Functions
+function toggleAssigneeDropdown(dateKey, taskId, buttonElement) {
+    const dropdownId = `assign-dropdown-${dateKey}-${taskId}`;
+    const dropdown = document.getElementById(dropdownId);
+    
+    // Close all other dropdowns first and remove their open classes
+    document.querySelectorAll('.assign-dropdown').forEach(dd => {
+        if (dd.id !== dropdownId) {
+            dd.style.display = 'none';
+            const container = dd.closest('.task-assign-multi');
+            const taskItem = dd.closest('.task-item');
+            if (container) {
+                container.classList.remove('dropdown-open');
+            }
+            if (taskItem) {
+                taskItem.classList.remove('dropdown-active');
+            }
+        }
+    });
+    
+    // Toggle current dropdown
+    if (dropdown) {
+        const container = dropdown.closest('.task-assign-multi');
+        const taskItem = dropdown.closest('.task-item');
+        if (dropdown.style.display === 'block') {
+            dropdown.style.display = 'none';
+            if (container) {
+                container.classList.remove('dropdown-open');
+            }
+            if (taskItem) {
+                taskItem.classList.remove('dropdown-active');
+            }
+        } else {
+            dropdown.style.display = 'block';
+            if (container) {
+                container.classList.add('dropdown-open');
+            }
+            if (taskItem) {
+                taskItem.classList.add('dropdown-active');
+            }
+        }
+    }
+}
+
+// Drag control functions - now work on task text elements
+function disableTaskDrag(element) {
+    const taskText = element.closest('.task-item').querySelector('.task-text');
+    if (taskText) {
+        taskText.draggable = false;
+        taskText.style.cursor = 'default';
+    }
+}
+
+function enableTaskDrag(element) {
+    const taskText = element.closest('.task-item').querySelector('.task-text');
+    if (taskText) {
+        taskText.draggable = true;
+        taskText.style.cursor = 'grab';
+    }
+}
+
+// Safe checkbox handler that extracts data from attributes
+function handleAssigneeCheckbox(checkbox) {
+    const member = checkbox.dataset.member;
+    const dateKey = checkbox.dataset.dateKey;
+    const taskId = parseInt(checkbox.dataset.taskId);
+    const isChecked = checkbox.checked;
+    
+    updateTaskAssignees(dateKey, taskId, member, isChecked);
+}
+
+function updateTaskAssignees(dateKey, taskId, member, isChecked) {
+    if (appData.tasks[dateKey]) {
+        const task = appData.tasks[dateKey].find(t => t.id === taskId);
+        if (task) {
+            // Initialize assignees array if it doesn't exist or is the old single assignee
+            if (!task.assignees || !Array.isArray(task.assignees)) {
+                // Migrate from old single assignee to new multiple assignees
+                task.assignees = task.assignee ? [task.assignee] : [];
+                delete task.assignee; // Remove old property
+            }
+            
+            if (isChecked) {
+                // Add member if not already in array
+                if (!task.assignees.includes(member)) {
+                    task.assignees.push(member);
+                }
+            } else {
+                // Remove member from array
+                task.assignees = task.assignees.filter(m => m !== member);
+            }
+            
+            renderTasks();
+            saveDataToStorage();
+        }
+    }
+}
+
+// Legacy function for compatibility - now handles single assignment
 function assignTask(dateKey, taskId, assignee) {
     if (appData.tasks[dateKey]) {
         const task = appData.tasks[dateKey].find(t => t.id === taskId);
         if (task) {
-            task.assignee = assignee;
+            // Convert to new multiple assignee format
+            task.assignees = [assignee];
+            delete task.assignee; // Remove old property
             renderTasks();
             saveDataToStorage();
         }
@@ -2014,7 +2310,7 @@ function openTaskNote(dateKey, taskId) {
             currentTaskForNote = { dateKey, taskId };
             document.getElementById('task-title-input').value = task.text;
             document.getElementById('task-note-content').value = task.note || '';
-            document.getElementById('task-status-select').value = task.status || 'programming';
+            document.getElementById('task-status-select').value = task.status || 'pending';
             
             // Populate issues and appreciation
             renderModalFeedback(task);
@@ -2206,7 +2502,7 @@ function performSearch() {
         <div class="search-result-item" onclick="navigateToTask('${result.dateKey}', ${result.task.id})">
             <div class="search-result-task">${result.task.text}</div>
             <div class="search-result-details">
-                <span>👤 ${result.task.assignee} | 📊 ${statusConfig[result.task.status]?.label || result.task.status}</span>
+                <span>👤 ${result.task.assignees && result.task.assignees.length > 0 ? (result.task.assignees.length === 1 ? result.task.assignees[0] : `${result.task.assignees.length} members`) : (result.task.assignee || 'Unassigned')} | 📊 ${result.task.status ? result.task.status.charAt(0).toUpperCase() + result.task.status.slice(1) : 'Pending'}</span>
                 <span class="search-result-date">${result.date}</span>
             </div>
             ${result.task.note ? `<div style="color: #94a3b8; font-size: 9px; margin-top: 2px; font-style: italic;">"${result.task.note.substring(0, 30)}${result.task.note.length > 30 ? '...' : ''}"</div>` : ''}
@@ -2308,7 +2604,7 @@ function renderTasks(forceUpdate = false) {
             text: t.text, 
             completed: t.completed, 
             priority: t.priority,
-            assigned: t.assigned,
+            assignees: t.assignees || [t.assignee] || [],
             status: t.status,
             note: t.note,
             noteUpdatedAt: t.noteUpdatedAt,
@@ -2345,26 +2641,55 @@ function renderTasks(forceUpdate = false) {
             const taskDateKey = task.originalDate || dateKey;
             const isFromPrevious = task.fromPreviousDate;
             return `
-            <div class="task-item ${isFromPrevious ? 'previous-date-task' : ''}" draggable="true" ondragstart="dragTask(event, '${taskDateKey}', ${task.id})">
+            <div class="task-item ${isFromPrevious ? 'previous-date-task' : ''}">
                 <div class="task-content">
                     <div class="task-left">
                         <div class="task-main">
                             <input type="checkbox" class="task-checkbox" ${task.completed ? 'checked' : ''} 
                                    onchange="toggleTask('${taskDateKey}', ${task.id})">
-                            <span class="task-text ${task.completed ? 'completed' : ''}" onclick="openTaskNote('${taskDateKey}', ${task.id})" title="Click to add/edit notes and feedback">${task.text}${isFromPrevious ? ` <small style="color: rgba(255,255,255,0.5);">(from ${new Date(task.originalDate).toLocaleDateString()})</small>` : ''}</span>
+                            <span class="task-text ${task.completed ? 'completed' : ''}" 
+                                  draggable="true" 
+                                  ondragstart="dragTask(event, '${taskDateKey}', ${task.id})" 
+                                  onclick="openTaskNote('${taskDateKey}', ${task.id})" 
+                                  title="Drag to move task or click to add/edit notes and feedback">${task.text}${isFromPrevious ? ` <small style="color: rgba(255,255,255,0.5);">(from ${new Date(task.originalDate).toLocaleDateString()})</small>` : ''}</span>
                         </div>
                         <div class="task-meta">
                             <div class="task-meta-left">
                                 <select class="task-status" onchange="changeTaskStatus('${taskDateKey}', ${task.id}, this.value)">
-                                    ${Object.keys(statusConfig).map(status => 
-                                        `<option value="${status}" ${task.status === status ? 'selected' : ''}>${statusConfig[status].label}</option>`
+                                    ${(appData.taskStatuses || ['pending']).map(status => 
+                                        `<option value="${status}" ${task.status === status ? 'selected' : ''}>${status.charAt(0).toUpperCase() + status.slice(1)}</option>`
                                     ).join('')}
                                 </select>
-                                <select class="task-assign" onchange="assignTask('${taskDateKey}', ${task.id}, this.value)">
-                                    ${appData.teamMembers.map(member => 
-                                        `<option value="${member}" ${task.assignee === member ? 'selected' : ''}>${member}</option>`
-                                    ).join('')}
-                                </select>
+                                <div class="task-assign-multi" 
+                                     onmouseenter="disableTaskDrag(this)" 
+                                     onmouseleave="enableTaskDrag(this)"
+                                     onmousedown="event.stopPropagation()" 
+                                     ondragstart="event.preventDefault(); event.stopPropagation();">
+                                    <button class="assign-dropdown-btn" onclick="toggleAssigneeDropdown('${taskDateKey}', ${task.id}, this); event.stopPropagation();">
+                                        ${task.assignees && task.assignees.length > 0 ? 
+                                            task.assignees[0] + (task.assignees.length > 1 ? ` +${task.assignees.length - 1}` : '')
+                                            : 'Assign to...'}
+                                        <span class="dropdown-arrow">▼</span>
+                                    </button>
+                                    <div class="assign-dropdown" id="assign-dropdown-${taskDateKey}-${task.id}" style="display: none;" 
+                                         onmouseenter="disableTaskDrag(this)" 
+                                         onmouseleave="enableTaskDrag(this)"
+                                         onmousedown="event.stopPropagation()" 
+                                         ondragstart="event.preventDefault(); event.stopPropagation();">
+                                        ${(appData.teamMembers || ['Harsha (Me)']).map(member => `
+                                            <label class="assign-option" onmousedown="event.stopPropagation()">
+                                                <input type="checkbox" value="${member}" 
+                                                    data-member="${member}" 
+                                                    data-date-key="${taskDateKey}" 
+                                                    data-task-id="${task.id}"
+                                                    ${task.assignees && task.assignees.includes(member) ? 'checked' : ''} 
+                                                    onchange="handleAssigneeCheckbox(this)"
+                                                    onmousedown="event.stopPropagation()">
+                                                <span class="assign-label">${member}</span>
+                                            </label>
+                                        `).join('')}
+                                    </div>
+                                </div>
                             </div>
                             <div class="task-meta-right">
                                 <div class="task-counts">
@@ -2398,10 +2723,13 @@ function renderTasks(forceUpdate = false) {
 function initializeFilterModal() {
     // Populate team members in filter
     const filterPersonSelect = document.getElementById('filter-person');
-    filterPersonSelect.innerHTML = `
-        <option value="">All People</option>
-        ${appData.teamMembers.map(member => `<option value="${member}">${member}</option>`).join('')}
-    `;
+    if (filterPersonSelect) {
+        const teamMembers = (appData && appData.teamMembers) || [];
+        filterPersonSelect.innerHTML = `
+            <option value="">All People</option>
+            ${teamMembers.map(member => `<option value="${member}">${member}</option>`).join('')}
+        `;
+    }
 }
 
 function openFilterModal() {
@@ -3670,7 +3998,7 @@ function dropToImportant(event) {
             originalTaskId: draggedTask.taskId,
             originalDate: draggedTask.dateKey,
             text: draggedTask.task.text,
-            assignee: draggedTask.task.assignee,
+            assignees: draggedTask.task.assignees || [draggedTask.task.assignee] || [],
             status: draggedTask.task.status,
             addedAt: new Date().toISOString(),
             completed: draggedTask.task.completed
@@ -3910,6 +4238,21 @@ window.onclick = function(event) {
     const searchInput = document.getElementById('search-task-input');
     if (searchResults && !searchResults.contains(event.target) && event.target !== searchInput) {
         searchResults.style.display = 'none';
+    }
+    
+    // Close assignee dropdowns when clicking outside
+    if (!event.target.closest('.task-assign-multi')) {
+        document.querySelectorAll('.assign-dropdown').forEach(dropdown => {
+            dropdown.style.display = 'none';
+            const container = dropdown.closest('.task-assign-multi');
+            const taskItem = dropdown.closest('.task-item');
+            if (container) {
+                container.classList.remove('dropdown-open');
+            }
+            if (taskItem) {
+                taskItem.classList.remove('dropdown-active');
+            }
+        });
     }
 }
 
@@ -4163,7 +4506,7 @@ class DashboardApp {
             text: taskText,
             completed: false,
             status: 'pending',
-            assignedTo: 'Harsha (Me)',
+            assignees: [authSystem.currentUser ? `${authSystem.currentUser.name} (Me)` : 'Harsha (Me)'],
             note: '',
             issues: [],
             appreciation: [],
