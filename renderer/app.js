@@ -2209,6 +2209,15 @@ function toggleTask(dateKey, taskId, checkboxElement = null) {
             
             // Toggle the task completion status
             task.completed = !task.completed;
+            
+            // Add completion timestamp when task is completed
+            if (task.completed) {
+                task.completedAt = new Date().toISOString();
+            } else {
+                // Remove completion timestamp if task is uncompleted
+                delete task.completedAt;
+            }
+            
             renderTasks();
             saveDataToStorage();
         }
@@ -3052,7 +3061,7 @@ function renderTasks(forceUpdate = false) {
     // Get tasks for current date
     const todayTasks = appData.tasks[dateKey] || [];
     
-    // Get uncompleted tasks from previous dates only
+    // Get tasks from all dates that should show up today
     Object.keys(appData.tasks).forEach(key => {
         // Skip current date - we'll add those separately
         if (key !== dateKey) {
@@ -3062,12 +3071,25 @@ function renderTasks(forceUpdate = false) {
             // Only add if the task date is before today
             if (taskDate < today) {
                 const previousTasks = appData.tasks[key] || [];
-                // Add tasks from previous dates - include completed if filter is active
-                const shouldIncludeCompleted = activeFilters.includeCompleted;
-                const previousTasksToShow = shouldIncludeCompleted ? 
-                    previousTasks : 
-                    previousTasks.filter(task => !task.completed);
-                currentTasks = currentTasks.concat(previousTasksToShow.map(task => ({
+                
+                const tasksToShow = previousTasks.filter(task => {
+                    // Always include uncompleted tasks from previous dates
+                    if (!task.completed) {
+                        return true;
+                    }
+                    
+                    // For completed tasks, check if they were completed on the current viewing date
+                    if (task.completed && task.completedAt) {
+                        const completedDate = new Date(task.completedAt);
+                        const viewingDate = new Date(dateKey);
+                        return completedDate.toDateString() === viewingDate.toDateString();
+                    }
+                    
+                    // Include completed tasks if filter is active (legacy behavior)
+                    return activeFilters.includeCompleted;
+                });
+                
+                currentTasks = currentTasks.concat(tasksToShow.map(task => ({
                     ...task,
                     fromPreviousDate: true,
                     originalDate: key
@@ -3079,14 +3101,44 @@ function renderTasks(forceUpdate = false) {
     // Add today's tasks (both completed and uncompleted)
     currentTasks = currentTasks.concat(todayTasks);
     
-    // Sort tasks: incomplete tasks first, then completed tasks at the bottom
+    // Sort tasks with priority: Today's incomplete → Older incomplete → Today's completed → Older completed
     currentTasks.sort((a, b) => {
-        // If one is completed and the other isn't, sort by completion status
-        if (a.completed !== b.completed) {
-            return a.completed ? 1 : -1; // Completed tasks go to bottom (1), incomplete stay at top (-1)
+        const today = new Date(dateKey);
+        
+        // Helper function to check if a task was created today
+        const isCreatedToday = (task) => {
+            return !task.fromPreviousDate;
+        };
+        
+        // Priority levels: 1 = Today incomplete, 2 = Older incomplete, 3 = Completed tasks
+        const getPriority = (task) => {
+            if (!task.completed && isCreatedToday(task)) return 1; // Today's incomplete tasks
+            if (!task.completed && !isCreatedToday(task)) return 2; // Older incomplete tasks
+            if (task.completed) return 3; // All completed tasks (already filtered by completion date in collection)
+            return 4; // Fallback
+        };
+        
+        const aPriority = getPriority(a);
+        const bPriority = getPriority(b);
+        
+        if (aPriority !== bPriority) {
+            return aPriority - bPriority;
         }
-        // If both have same completion status, maintain original order (stable sort)
-        return 0;
+        
+        // Within same priority, sort by relevant timestamp (newest first)
+        if (aPriority === 3 && bPriority === 3) {
+            // For completed tasks, sort by completion time (most recently completed first)
+            const aTime = a.completedAt ? new Date(a.completedAt) : new Date(0);
+            const bTime = b.completedAt ? new Date(b.completedAt) : new Date(0);
+            return bTime - aTime;
+        } else if (aPriority < 3 && bPriority < 3) {
+            // For incomplete tasks, sort by creation time (newest first)
+            if (a.createdAt && b.createdAt) {
+                return new Date(b.createdAt) - new Date(a.createdAt);
+            }
+        }
+        
+        return 0; // Maintain original order if no timestamps
     });
     
     const container = document.getElementById('tasks-container');
