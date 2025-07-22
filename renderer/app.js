@@ -1574,6 +1574,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
     
     initializeFilterModal();
+    initializeClipboardPaste();
     fetchWeather();
     
     // Restore timers now that flickering is fixed
@@ -2402,6 +2403,9 @@ function renderModalFeedback(task) {
     const completedCount = subtasks.filter(s => s.completed).length;
     document.getElementById('subtask-count').textContent = `(${pendingCount} pending, ${completedCount} completed)`;
     
+    // Render attachments
+    renderAttachments(task);
+    
     // Render appreciation
     const appreciationList = document.getElementById('appreciation-list');
     appreciationList.innerHTML = (task.appreciation || []).map((appreciation, index) => `
@@ -2513,6 +2517,319 @@ function removeSubtask(index) {
             renderTasks(); // Update task list to show new counts
             saveDataToStorage();
         }
+    }
+}
+
+// Attachment Management Functions
+function renderAttachments(task) {
+    const attachmentsList = document.getElementById('attachments-list');
+    const attachmentCount = document.getElementById('attachment-count');
+    const dropzone = document.getElementById('attachment-dropzone');
+    const addBtn = document.getElementById('attachment-add-btn');
+    const container = document.getElementById('attachments-container');
+    
+    const attachments = task.attachments || [];
+    
+    if (attachments.length === 0) {
+        attachmentsList.innerHTML = '';
+        attachmentCount.textContent = '(0 files)';
+        dropzone.style.display = 'flex';
+        addBtn.style.display = 'none';
+        container.classList.remove('has-files');
+        return;
+    }
+    
+    // Show + button and hide dropzone when there are attachments
+    dropzone.style.display = 'none';
+    addBtn.style.display = 'inline-flex';
+    container.classList.add('has-files');
+    
+    attachmentsList.innerHTML = attachments.map((attachment, index) => `
+        <div class="attachment-item">
+            <div class="attachment-icon">${getFileIcon(attachment.name)}</div>
+            <div class="attachment-info">
+                <div class="attachment-name" onclick="openAttachment('${attachment.path}')">
+                    ${attachment.name}
+                </div>
+                <div class="attachment-details">
+                    ${formatFileSize(attachment.size)} • Added ${formatDate(attachment.uploadedAt)}
+                </div>
+            </div>
+            <div class="attachment-actions">
+                <button class="attachment-action delete" onclick="removeAttachment(${index})" title="Delete">
+                    ×
+                </button>
+            </div>
+        </div>
+    `).join('');
+    
+    attachmentCount.textContent = `(${attachments.length} file${attachments.length > 1 ? 's' : ''})`;
+}
+
+function getFileIcon(fileName) {
+    const ext = fileName.split('.').pop().toLowerCase();
+    const iconMap = {
+        // Images
+        'jpg': '🖼️', 'jpeg': '🖼️', 'png': '🖼️', 'gif': '🖼️', 'bmp': '🖼️', 'webp': '🖼️',
+        // Documents  
+        'pdf': '📄', 'doc': '📝', 'docx': '📝', 'txt': '📝', 'rtf': '📝',
+        // Spreadsheets
+        'xls': '📊', 'xlsx': '📊', 'csv': '📊',
+        // Presentations
+        'ppt': '📊', 'pptx': '📊',
+        // Archives
+        'zip': '📦', 'rar': '📦', '7z': '📦', 'tar': '📦', 'gz': '📦',
+        // Code
+        'js': '💻', 'html': '💻', 'css': '💻', 'py': '💻', 'java': '💻', 'cpp': '💻',
+        // Media
+        'mp4': '🎬', 'avi': '🎬', 'mov': '🎬', 'mp3': '🎵', 'wav': '🎵', 'flac': '🎵',
+        // Default
+        'default': '📎'
+    };
+    return iconMap[ext] || iconMap['default'];
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+function formatDate(dateString) {
+    return new Date(dateString).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+// Drag and Drop Functions
+function handleDragOver(event) {
+    event.preventDefault();
+    event.stopPropagation();
+}
+
+function handleDragEnter(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    document.getElementById('attachments-container').classList.add('drag-over');
+}
+
+function handleDragLeave(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!event.currentTarget.contains(event.relatedTarget)) {
+        document.getElementById('attachments-container').classList.remove('drag-over');
+    }
+}
+
+function handleFileDrop(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    document.getElementById('attachments-container').classList.remove('drag-over');
+    
+    const files = Array.from(event.dataTransfer.files);
+    if (files.length > 0) {
+        processFiles(files);
+    }
+}
+
+function handleFileSelect(event) {
+    const files = Array.from(event.target.files);
+    if (files.length > 0) {
+        processFiles(files);
+        event.target.value = ''; // Clear file input
+    }
+}
+
+async function processFiles(files) {
+    if (!currentTaskForNote) return;
+    
+    const { dateKey, taskId } = currentTaskForNote;
+    const task = appData.tasks[dateKey].find(t => t.id === taskId);
+    if (!task) return;
+    
+    // Initialize attachments array if it doesn't exist
+    if (!task.attachments) task.attachments = [];
+    
+    for (const file of files) {
+        try {
+            const savedFile = await saveAttachmentFile(file);
+            
+            const attachment = {
+                id: generateUniqueId(),
+                name: file.name,
+                path: savedFile.path,
+                size: file.size,
+                mimeType: file.type,
+                uploadedAt: new Date().toISOString()
+            };
+            
+            task.attachments.push(attachment);
+        } catch (error) {
+            console.error('Failed to save attachment:', error);
+            alert(`Failed to save file: ${file.name}`);
+        }
+    }
+    
+    renderAttachments(task);
+    renderTasks(); // Update task list to show attachment counts
+    saveDataToStorage();
+}
+
+async function saveAttachmentFile(file) {
+    try {
+        // Ensure attachments directory exists
+        const attachmentsDir = await window.electronAPI.attachments.createAttachmentsDir();
+        if (!attachmentsDir.success) {
+            throw new Error(attachmentsDir.error);
+        }
+        
+        // Read file as buffer
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Array.from(new Uint8Array(arrayBuffer));
+        
+        // Save file with unique timestamp name
+        const result = await window.electronAPI.attachments.saveFile(buffer, file.name);
+        if (!result.success) {
+            throw new Error(result.error);
+        }
+        
+        return {
+            path: result.path,
+            name: file.name,
+            size: file.size
+        };
+    } catch (error) {
+        console.error('Error saving attachment file:', error);
+        throw error;
+    }
+}
+
+function generateUniqueId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2);
+}
+
+async function openAttachment(filePath) {
+    try {
+        const result = await window.electronAPI.attachments.openFile(filePath);
+        if (!result.success) {
+            throw new Error(result.error);
+        }
+    } catch (error) {
+        console.error('Failed to open attachment:', error);
+        alert('Failed to open file. The file may have been moved or deleted.');
+    }
+}
+
+function removeAttachment(index) {
+    if (!currentTaskForNote) return;
+    
+    const { dateKey, taskId } = currentTaskForNote;
+    const task = appData.tasks[dateKey].find(t => t.id === taskId);
+    if (!task || !task.attachments) return;
+    
+    if (confirm('Are you sure you want to remove this attachment?')) {
+        task.attachments.splice(index, 1);
+        renderAttachments(task);
+        renderTasks(); // Update task list to show attachment counts
+        saveDataToStorage();
+    }
+}
+
+// Screenshot/Clipboard Paste Functionality
+function initializeClipboardPaste() {
+    // Global paste event listener
+    document.addEventListener('keydown', async function(event) {
+        // Check for Ctrl+V (or Cmd+V on Mac)
+        if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
+            // Only handle if task modal is open and we're not in an input field
+            const taskModal = document.getElementById('taskNoteModal');
+            const activeElement = document.activeElement;
+            
+            if (taskModal && taskModal.style.display === 'block' && currentTaskForNote) {
+                // Don't interfere if user is typing in an input or textarea
+                if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+                    return;
+                }
+                
+                event.preventDefault();
+                await handleClipboardPaste();
+            }
+        }
+    });
+    
+    // Also add paste event listener to the attachments container for direct paste
+    document.addEventListener('paste', async function(event) {
+        const taskModal = document.getElementById('taskNoteModal');
+        if (taskModal && taskModal.style.display === 'block' && currentTaskForNote) {
+            const activeElement = document.activeElement;
+            
+            // Don't interfere if user is typing in an input or textarea
+            if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+                return;
+            }
+            
+            event.preventDefault();
+            await handleClipboardPasteEvent(event);
+        }
+    });
+}
+
+async function handleClipboardPaste() {
+    try {
+        // Request clipboard permission first
+        const permission = await navigator.permissions.query({ name: 'clipboard-read' });
+        if (permission.state === 'denied') {
+            console.log('Clipboard access denied');
+            return;
+        }
+        
+        const clipboardItems = await navigator.clipboard.read();
+        
+        for (const clipboardItem of clipboardItems) {
+            for (const type of clipboardItem.types) {
+                if (type.startsWith('image/')) {
+                    const blob = await clipboardItem.getType(type);
+                    const file = new File([blob], `screenshot_${Date.now()}.png`, { type: 'image/png' });
+                    await processFiles([file]);
+                    console.log('Screenshot pasted successfully');
+                    return;
+                }
+            }
+        }
+        
+        console.log('No image found in clipboard');
+    } catch (error) {
+        console.error('Failed to read clipboard:', error);
+        // Fallback: show instruction to user
+        alert('Unable to access clipboard. Please use drag-and-drop or the Browse Files button instead.');
+    }
+}
+
+async function handleClipboardPasteEvent(event) {
+    try {
+        const items = event.clipboardData.items;
+        
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            if (item.type.startsWith('image/')) {
+                const file = item.getAsFile();
+                if (file) {
+                    const renamedFile = new File([file], `screenshot_${Date.now()}.png`, { type: 'image/png' });
+                    await processFiles([renamedFile]);
+                    console.log('Screenshot pasted successfully via paste event');
+                    return;
+                }
+            }
+        }
+        
+        console.log('No image found in paste data');
+    } catch (error) {
+        console.error('Failed to handle paste event:', error);
     }
 }
 
@@ -2793,6 +3110,7 @@ function renderTasks(forceUpdate = false) {
             noteUpdatedAt: t.noteUpdatedAt,
             issues: t.issues,
             subtasks: t.subtasks,
+            attachments: t.attachments,
             appreciation: t.appreciation,
             fromPreviousDate: t.fromPreviousDate,
             originalDate: t.originalDate
@@ -2878,6 +3196,7 @@ function renderTasks(forceUpdate = false) {
                             <div class="task-meta-right">
                                 <div class="task-counts">
                                     ${(task.subtasks?.length || 0) > 0 ? `<span class="count-badge subtask-count">✅ ${task.subtasks.filter(s => s.completed).length}/${task.subtasks.length}</span>` : ''}
+                                    ${(task.attachments?.length || 0) > 0 ? `<span class="count-badge attachment-count">📎 ${task.attachments.length}</span>` : ''}
                                     ${(task.issues?.length || 0) > 0 ? `<span class="count-badge issues-count">🚨 ${task.issues.length}</span>` : ''}
                                     ${(task.appreciation?.length || 0) > 0 ? `<span class="count-badge appreciation-count">👏 ${task.appreciation.length}</span>` : ''}
                                 </div>

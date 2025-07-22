@@ -1167,14 +1167,14 @@
 
         .modal-content {
             background: #1e293b;
-            margin: 5% auto;
+            margin: 3% auto;
             padding: 24px;
             border-radius: 16px;
-            width: 90%;
-            max-width: 600px;
+            width: 95%;
+            max-width: 1000px;
             border: 1px solid rgba(71, 85, 105, 0.5);
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-            max-height: 80vh;
+            max-height: 90vh;
             overflow-y: auto;
         }
 
@@ -1579,6 +1579,155 @@
             color: #e2e8f0;
             font-size: 13px;
             cursor: pointer;
+        }
+
+        /* Attachments Section */
+        .attachments-container {
+            min-height: 120px;
+            border: 2px dashed rgba(71, 85, 105, 0.3);
+            border-radius: 8px;
+            position: relative;
+            transition: all 0.3s;
+        }
+
+        .attachments-container.drag-over {
+            border-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .attachments-list {
+            padding: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .attachment-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px;
+            background: rgba(71, 85, 105, 0.2);
+            border-radius: 6px;
+            margin-bottom: 6px;
+            transition: all 0.2s;
+        }
+
+        .attachment-item:hover {
+            background: rgba(71, 85, 105, 0.3);
+        }
+
+        .attachment-icon {
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .attachment-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .attachment-name {
+            color: #e2e8f0;
+            font-size: 13px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            cursor: pointer;
+        }
+
+        .attachment-name:hover {
+            color: #3b82f6;
+            text-decoration: underline;
+        }
+
+        .attachment-details {
+            color: #94a3b8;
+            font-size: 11px;
+        }
+
+        .attachment-actions {
+            display: flex;
+            gap: 4px;
+        }
+
+        .attachment-action {
+            background: transparent;
+            border: none;
+            color: #64748b;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 3px;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .attachment-action:hover {
+            background: rgba(71, 85, 105, 0.3);
+            color: #e2e8f0;
+        }
+
+        .attachment-action.delete:hover {
+            color: #ef4444;
+        }
+
+        .attachment-dropzone {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            text-align: center;
+            min-height: 120px;
+        }
+
+        .dropzone-content {
+            margin-bottom: 12px;
+        }
+
+        .dropzone-icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        .dropzone-text {
+            color: #e2e8f0;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .dropzone-subtext {
+            color: #94a3b8;
+            font-size: 12px;
+        }
+
+        .attachment-browse-btn {
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 6px;
+            padding: 8px 16px;
+            color: #3b82f6;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .attachment-browse-btn:hover {
+            background: rgba(59, 130, 246, 0.3);
+            border-color: rgba(59, 130, 246, 0.4);
+        }
+
+        /* Attachment count badge in task list */
+        .count-badge.attachment-count {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            color: #f59e0b;
         }
 
         .date-range {
@@ -3166,4 +3315,56 @@
         .assign-dropdown-btn,
         .task-action-btn {
             cursor: pointer !important;
+        }
+
+        /* Two-column task modal layout */
+        .task-modal-body {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 24px;
+            margin-top: 16px;
+        }
+
+        .task-modal-left {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .task-modal-right {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* Attachment section improvements */
+        .attachment-add-btn {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            border-radius: 6px;
+            color: #f59e0b;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            font-size: 12px;
+            margin-left: 8px;
+            transition: all 0.2s;
+        }
+
+        .attachment-add-btn:hover {
+            background: rgba(245, 158, 11, 0.2);
+            border-color: rgba(245, 158, 11, 0.5);
+        }
+
+        /* Hide dropzone when files are present */
+        .attachments-container.has-files .attachment-dropzone {
+            display: none;
+        }
+
+        .attachments-container.has-files {
+            border-style: solid;
+            border-color: rgba(71, 85, 105, 0.3);
         }

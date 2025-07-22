@@ -579,6 +579,51 @@ ipcMain.handle('clipboard-write-text', async (event, text) => {
   }
 });
 
+// Handle attachment file operations
+ipcMain.handle('createAttachmentsDir', async () => {
+  try {
+    const attachmentsDir = path.join(os.homedir(), 'Documents', 'DashboardAttachments');
+    await fs.mkdir(attachmentsDir, { recursive: true });
+    return { success: true, path: attachmentsDir };
+  } catch (error) {
+    console.error('Error creating attachments directory:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('saveFile', async (event, buffer, filename) => {
+  try {
+    const attachmentsDir = path.join(os.homedir(), 'Documents', 'DashboardAttachments');
+    await fs.mkdir(attachmentsDir, { recursive: true });
+    
+    // Create unique filename with timestamp
+    const timestamp = Date.now();
+    const ext = path.extname(filename);
+    const name = path.basename(filename, ext);
+    const uniqueFilename = `${timestamp}_${name}${ext}`;
+    const filePath = path.join(attachmentsDir, uniqueFilename);
+    
+    // Convert buffer back to Uint8Array if needed
+    const fileBuffer = Buffer.from(buffer);
+    await fs.writeFile(filePath, fileBuffer);
+    
+    return { success: true, path: filePath, filename: uniqueFilename };
+  } catch (error) {
+    console.error('Error saving file:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('openFile', async (event, filePath) => {
+  try {
+    await shell.openPath(filePath);
+    return { success: true };
+  } catch (error) {
+    console.error('Error opening file:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // Siri integration handlers
 ipcMain.handle('siri-register-shortcuts', async () => {
   if (process.platform !== 'darwin') {

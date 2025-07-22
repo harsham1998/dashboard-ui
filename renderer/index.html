@@ -396,70 +396,108 @@
                 <h3 class="modal-title">Task Details</h3>
                 <button class="close-btn" onclick="closeTaskNoteModal()">&times;</button>
             </div>
-            <!-- Editable Task Title -->
-            <div style="margin-bottom: 16px;">
-                <label class="filter-label">Task Name:</label>
-                <input type="text" id="task-title-input" class="modal-input" placeholder="Enter task name...">
-            </div>
-            
-            <!-- Status Selection -->
-            <div style="margin-bottom: 16px;">
-                <label class="filter-label">Status:</label>
-                <select id="task-status-select" class="modal-select">
-                    <option value="programming">Programming</option>
-                    <option value="discussion">Discussion</option>
-                    <option value="pretest">PreTest</option>
-                    <option value="test">Test</option>
-                    <option value="live">Live</option>
-                </select>
-            </div>
-            
-            <!-- Notes -->
-            <div style="margin-bottom: 16px;">
-                <label class="filter-label">Notes:</label>
-                <textarea id="task-note-content" class="modal-textarea" placeholder="Add notes for this task..."></textarea>
-            </div>
-            
-            <!-- Subtasks Section -->
-            <div class="feedback-section">
-                <div class="feedback-header">
-                    <h4 style="color: #3b82f6; font-size: 14px;">✅ Subtasks</h4>
-                    <span id="subtask-count" style="color: #64748b; font-size: 12px;">(0 pending, 0 completed)</span>
-                </div>
-                <div class="feedback-list subtasks-container" id="subtasks-list">
-                    <!-- Subtasks will be populated here -->
-                </div>
-                <div class="add-feedback">
-                    <input type="text" id="new-subtask-input" class="feedback-input" placeholder="Add a new subtask..." />
-                    <button class="add-feedback-btn" onclick="addSubtask()">Add Subtask</button>
-                </div>
-            </div>
-            
-            <!-- Issues Section -->
-            <div class="feedback-section">
-                <div class="feedback-header">
-                    <h4 style="color: #ef4444; font-size: 14px;">🚨 Issues</h4>
-                </div>
-                <div class="feedback-list" id="issues-list">
-                    <!-- Issues will be populated here -->
-                </div>
-                <div class="add-feedback">
-                    <input type="text" id="new-issue-input" class="feedback-input" placeholder="Add a new issue..." />
-                    <button class="add-feedback-btn" onclick="addIssue()">Add Issue</button>
-                </div>
-            </div>
+            <!-- Two-column layout -->
+            <div class="task-modal-body">
+                <!-- Left Column -->
+                <div class="task-modal-left">
+                    <!-- Editable Task Title -->
+                    <div>
+                        <label class="filter-label">Task Name:</label>
+                        <input type="text" id="task-title-input" class="modal-input" placeholder="Enter task name...">
+                    </div>
+                    
+                    <!-- Status Selection -->
+                    <div>
+                        <label class="filter-label">Status:</label>
+                        <select id="task-status-select" class="modal-select">
+                            <option value="programming">Programming</option>
+                            <option value="discussion">Discussion</option>
+                            <option value="pretest">PreTest</option>
+                            <option value="test">Test</option>
+                            <option value="live">Live</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Notes -->
+                    <div>
+                        <label class="filter-label">Notes:</label>
+                        <textarea id="task-note-content" class="modal-textarea" placeholder="Add notes for this task..."></textarea>
+                    </div>
+                    
+                    <!-- Issues Section -->
+                    <div class="feedback-section">
+                        <div class="feedback-header">
+                            <h4 style="color: #ef4444; font-size: 14px;">🚨 Issues</h4>
+                        </div>
+                        <div class="feedback-list" id="issues-list">
+                            <!-- Issues will be populated here -->
+                        </div>
+                        <div class="add-feedback">
+                            <input type="text" id="new-issue-input" class="feedback-input" placeholder="Add a new issue..." />
+                            <button class="add-feedback-btn" onclick="addIssue()">Add Issue</button>
+                        </div>
+                    </div>
 
-            <!-- Appreciation Section -->
-            <div class="feedback-section">
-                <div class="feedback-header">
-                    <h4 style="color: #22c55e; font-size: 14px;">👏 Appreciation</h4>
+                    <!-- Appreciation Section -->
+                    <div class="feedback-section">
+                        <div class="feedback-header">
+                            <h4 style="color: #22c55e; font-size: 14px;">👏 Appreciation</h4>
+                        </div>
+                        <div class="feedback-list" id="appreciation-list">
+                            <!-- Appreciation will be populated here -->
+                        </div>
+                        <div class="add-feedback">
+                            <input type="text" id="new-appreciation-input" class="feedback-input" placeholder="Add appreciation..." />
+                            <button class="add-feedback-btn" onclick="addAppreciation()">Add Appreciation</button>
+                        </div>
+                    </div>
                 </div>
-                <div class="feedback-list" id="appreciation-list">
-                    <!-- Appreciation will be populated here -->
-                </div>
-                <div class="add-feedback">
-                    <input type="text" id="new-appreciation-input" class="feedback-input" placeholder="Add appreciation..." />
-                    <button class="add-feedback-btn" onclick="addAppreciation()">Add Appreciation</button>
+
+                <!-- Right Column -->
+                <div class="task-modal-right">
+                    <!-- Subtasks Section -->
+                    <div class="feedback-section">
+                        <div class="feedback-header">
+                            <h4 style="color: #3b82f6; font-size: 14px;">✅ Subtasks</h4>
+                            <span id="subtask-count" style="color: #64748b; font-size: 12px;">(0 pending, 0 completed)</span>
+                        </div>
+                        <div class="feedback-list subtasks-container" id="subtasks-list">
+                            <!-- Subtasks will be populated here -->
+                        </div>
+                        <div class="add-feedback">
+                            <input type="text" id="new-subtask-input" class="feedback-input" placeholder="Add a new subtask..." />
+                            <button class="add-feedback-btn" onclick="addSubtask()">Add Subtask</button>
+                        </div>
+                    </div>
+
+                    <!-- Attachments Section -->
+                    <div class="feedback-section">
+                        <div class="feedback-header">
+                            <h4 style="color: #f59e0b; font-size: 14px;">📎 Attachments</h4>
+                            <span id="attachment-count" style="color: #64748b; font-size: 12px;">(0 files)</span>
+                            <button class="attachment-add-btn" id="attachment-add-btn" onclick="document.getElementById('file-input').click()" style="display: none;" title="Add more files">+</button>
+                        </div>
+                        <div class="attachments-container" id="attachments-container"
+                             ondrop="handleFileDrop(event)" 
+                             ondragover="handleDragOver(event)"
+                             ondragenter="handleDragEnter(event)"
+                             ondragleave="handleDragLeave(event)">
+                            <div class="attachments-list" id="attachments-list">
+                                <!-- Attachments will be populated here -->
+                            </div>
+                            <div class="attachment-dropzone" id="attachment-dropzone">
+                                <div class="dropzone-content">
+                                    <div class="dropzone-icon">📁</div>
+                                    <div class="dropzone-text">Drag & drop files here</div>
+                                    <div class="dropzone-subtext">or paste screenshots (Ctrl+V)</div>
+                                </div>
+                                <input type="file" id="file-input" multiple style="display: none;" onchange="handleFileSelect(event)">
+                                <button class="attachment-browse-btn" onclick="document.getElementById('file-input').click()">
+                                    Browse Files
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             

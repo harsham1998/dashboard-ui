@@ -57,6 +57,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   biometric: {
     authenticate: (reason) => ipcRenderer.invoke('biometric-authenticate', reason)
+  },
+  
+  attachments: {
+    createAttachmentsDir: () => ipcRenderer.invoke('createAttachmentsDir'),
+    saveFile: (buffer, filename) => ipcRenderer.invoke('saveFile', buffer, filename),
+    openFile: (filePath) => ipcRenderer.invoke('openFile', filePath)
   }
 });
 
