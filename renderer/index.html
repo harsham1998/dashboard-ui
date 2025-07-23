@@ -195,6 +195,13 @@
                             <span>🔍</span>
                             Filter
                         </button>
+                        <button class="filter-btn" id="tasks-btn" onclick="openTasksModal()">
+                            <span>📋</span>
+                            Tasks
+                        </button>
+                        <button class="filter-btn" id="master-console-btn" onclick="openMasterConsole()" title="Master Console">
+                            <span>⚙️</span>
+                        </button>
                         <div id="search-results" class="search-results" style="display: none;"></div>
                     </div>
                     
@@ -701,38 +708,6 @@
                 </div>
             </div>
 
-            <!-- Master Console Section -->
-            <div class="master-console">
-                <h4 class="console-title">🎛️ Master Console</h4>
-                
-                <!-- Team Management -->
-                <div class="console-section">
-                    <h5 class="console-subtitle">👥 Team Members</h5>
-                    <div class="team-management">
-                        <div class="add-member-section">
-                            <input type="text" id="new-member-name" class="modal-input" placeholder="Enter team member name...">
-                            <button class="console-btn" onclick="addTeamMember()">Add Member</button>
-                        </div>
-                        <div class="team-list" id="team-members-list">
-                            <!-- Team members will be populated here -->
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Status Management -->
-                <div class="console-section">
-                    <h5 class="console-subtitle">📊 Task Statuses</h5>
-                    <div class="status-management">
-                        <div class="add-status-section">
-                            <input type="text" id="new-status-name" class="modal-input" placeholder="Enter status name...">
-                            <button class="console-btn" onclick="addTaskStatus()">Add Status</button>
-                        </div>
-                        <div class="status-list" id="task-statuses-list">
-                            <!-- Task statuses will be populated here -->
-                        </div>
-                    </div>
-                </div>
-            </div>
             <div class="modal-actions">
                 <button class="modal-btn cancel" onclick="closeProfileModal()">Close</button>
             </div>
@@ -780,6 +755,163 @@
             </div>
             
             <div id="auth-message" class="auth-message" style="display: none;"></div>
+        </div>
+    </div>
+
+    <!-- Tasks Processing Modal -->
+    <div id="tasksModal" class="modal">
+        <div class="modal-content" style="max-width: 1200px; max-height: 95vh;">
+            <div class="modal-header">
+                <h3 class="modal-title">📋 Task Processor</h3>
+                <button class="close-btn" onclick="closeTasksModal()">&times;</button>
+            </div>
+            
+            <!-- Input Section -->
+            <div class="tasks-input-section">
+                <div class="tasks-input-header">
+                    <label class="filter-label">Paste Task Data:</label>
+                    <div class="tasks-dropdowns">
+                        <select id="bulk-assigned-to" class="modal-select">
+                            <option value="">Assigned To</option>
+                            <option value="Harsha (Me)">Harsha (Me)</option>
+                            <option value="Ujjawal">Ujjawal</option>
+                            <option value="Arun">Arun</option>
+                            <option value="Sanskar">Sanskar</option>
+                            <option value="Thombre">Thombre</option>
+                            <option value="Sakshi">Sakshi</option>
+                            <option value="Soumi">Soumi</option>
+                            <option value="Ayush">Ayush</option>
+                            <option value="Aditya">Aditya</option>
+                            <option value="Sankalp">Sankalp</option>
+                        </select>
+                        <select id="bulk-competency" class="modal-select">
+                            <option value="">Competency</option>
+                            <option value="498">Backend Development</option>
+                            <option value="499">Frontend Development</option>
+                            <option value="500">Full Stack Development</option>
+                            <option value="501">Testing</option>
+                            <option value="502">DevOps</option>
+                        </select>
+                    </div>
+                </div>
+                <textarea 
+                    id="task-input-text" 
+                    class="tasks-textarea" 
+                    placeholder="Paste your task data here (JSON, text, or multiple tasks)..."
+                    rows="6"
+                ></textarea>
+                <div class="tasks-actions">
+                    <button class="modal-btn" onclick="processTaskInput()">
+                        <span>🔄</span>
+                        Process Tasks
+                    </button>
+                    <button class="modal-btn" onclick="addManualTask()">
+                        <span>➕</span>
+                        Manual Input
+                    </button>
+                    <button class="modal-btn cancel" onclick="clearTaskInput()">
+                        <span>🗑️</span>
+                        Clear
+                    </button>
+                </div>
+            </div>
+
+            <!-- Results Section -->
+            <div class="tasks-results-section" id="tasks-results-section" style="display: none;">
+                <div class="tasks-results-header">
+                    <h4>📊 Extracted Tasks</h4>
+                    <span id="tasks-count">(0 tasks found)</span>
+                </div>
+                
+                <div class="tasks-table-container">
+                    <table class="tasks-table" id="tasks-table">
+                        <thead>
+                            <tr>
+                                <th>Task Name</th>
+                                <th>Assigned To</th>
+                                <th>Due Date</th>
+                                <th>Sprint</th>
+                                <th>Competency</th>
+                                <th>Coding (hrs)</th>
+                                <th>Testing (hrs)</th>
+                                <th>Review (hrs)</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tasks-table-body">
+                            <!-- Extracted tasks will appear here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="modal-btn cancel" onclick="closeTasksModal()">Cancel</button>
+                <button class="modal-btn" id="approve-all-btn" onclick="approveAllTasks()" style="display: none;">
+                    <span>✅</span>
+                    Approve All Tasks
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Master Console Modal -->
+    <div id="masterConsoleModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h3 class="modal-title">⚙️ Master Console - Manage Dropdown Options</h3>
+                <button class="close-btn" onclick="closeMasterConsole()">&times;</button>
+            </div>
+            
+            <div class="master-console-tabs">
+                <button class="tab-btn active" onclick="switchTab('team-members')">Team Members</button>
+                <button class="tab-btn" onclick="switchTab('competencies')">Competencies</button>
+                <button class="tab-btn" onclick="switchTab('sprints')">Sprints</button>
+            </div>
+
+            <!-- Team Members Tab -->
+            <div id="team-members-tab" class="tab-content active">
+                <div class="tab-header">
+                    <h4>Team Members</h4>
+                    <div class="add-item-form">
+                        <input type="text" id="new-member-name" placeholder="Member Name" class="modal-input">
+                        <input type="number" id="new-member-id" placeholder="ID" class="modal-input">
+                        <button class="modal-btn" onclick="addTeamMember()">Add Member</button>
+                    </div>
+                </div>
+                <div id="team-members-list" class="items-list"></div>
+            </div>
+
+            <!-- Competencies Tab -->
+            <div id="competencies-tab" class="tab-content">
+                <div class="tab-header">
+                    <h4>Competencies</h4>
+                    <div class="add-item-form">
+                        <input type="text" id="new-competency-name" placeholder="Competency Name" class="modal-input">
+                        <input type="number" id="new-competency-id" placeholder="ID" class="modal-input">
+                        <button class="modal-btn" onclick="addCompetency()">Add Competency</button>
+                    </div>
+                </div>
+                <div id="competencies-list" class="items-list"></div>
+            </div>
+
+            <!-- Sprints Tab -->
+            <div id="sprints-tab" class="tab-content">
+                <div class="tab-header">
+                    <h4>Sprints</h4>
+                    <div class="add-item-form">
+                        <input type="text" id="new-sprint-name" placeholder="Sprint Name" class="modal-input">
+                        <input type="number" id="new-sprint-id" placeholder="ID" class="modal-input">
+                        <button class="modal-btn" onclick="addSprint()">Add Sprint</button>
+                    </div>
+                </div>
+                <div id="sprints-list" class="items-list"></div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="modal-btn" onclick="saveMasterConsoleData()">💾 Save All Changes</button>
+                <button class="modal-btn secondary" onclick="closeMasterConsole()">Close</button>
+            </div>
         </div>
     </div>
 

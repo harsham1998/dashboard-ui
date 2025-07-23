@@ -475,32 +475,6 @@ function renderTeamMembers() {
     populateTeamFilter();
 }
 
-function addTeamMember() {
-    const input = document.getElementById('new-member-name');
-    const memberName = input.value.trim();
-    
-    if (!memberName) {
-        alert('Please enter a team member name');
-        return;
-    }
-    
-    // Ensure teamMembers exists
-    if (!appData.teamMembers) {
-        appData.teamMembers = [];
-    }
-    
-    if (appData.teamMembers.includes(memberName)) {
-        alert('Team member already exists');
-        return;
-    }
-    
-    appData.teamMembers.push(memberName);
-    input.value = '';
-    renderTeamMembers();
-    updateAllTeamDropdowns();
-    saveDataToStorage();
-    showNotification(`Added team member: ${memberName}`);
-}
 
 function removeTeamMember(index) {
     if (!appData.teamMembers || !appData.teamMembers[index]) return;
@@ -5256,13 +5230,15 @@ class DashboardApp {
 // Initialize the Electron app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.electronApp = new DashboardApp();
+    loadMasterConsoleData();
     
-    // Enable paste functionality for all text inputs and textareas
-    const addPasteSupport = (element) => {
+    // Enable paste and copy functionality for all text inputs and textareas
+    const addClipboardSupport = (element) => {
         if (!element) return;
         
-        // Handle keyboard paste (Cmd+V / Ctrl+V)
+        // Handle keyboard shortcuts
         element.addEventListener('keydown', async (e) => {
+            // Handle paste (Cmd+V / Ctrl+V)
             if ((e.metaKey || e.ctrlKey) && e.key === 'v') {
                 e.preventDefault();
                 try {
@@ -5281,6 +5257,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch (error) {
                     console.error('Failed to read clipboard:', error);
                 }
+            }
+            
+            // Handle copy (Cmd+C / Ctrl+C)
+            if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
+                const selectedText = element.value.substring(element.selectionStart, element.selectionEnd);
+                if (selectedText) {
+                    try {
+                        await window.electronAPI.clipboard.writeText(selectedText);
+                    } catch (error) {
+                        console.error('Failed to write to clipboard:', error);
+                    }
+                }
+            }
+            
+            // Handle select all (Cmd+A / Ctrl+A)
+            if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+                e.preventDefault();
+                element.select();
             }
         });
         
@@ -5321,7 +5315,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     inputSelectors.forEach(selector => {
         const elements = document.querySelectorAll(selector);
-        elements.forEach(addPasteSupport);
+        elements.forEach(addClipboardSupport);
     });
     
     // Add input formatting for credit card fields
@@ -5356,7 +5350,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (node.nodeType === 1) { // Element node
                     // Check if the node itself is an input/textarea
                     if (node.tagName === 'INPUT' || node.tagName === 'TEXTAREA') {
-                        addPasteSupport(node);
+                        addClipboardSupport(node);
                         // Add formatting for specific credit card inputs
                         if (node.id === 'card-number') {
                             formatCardNumber(node);
@@ -5368,7 +5362,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const inputs = node.querySelectorAll && node.querySelectorAll('input, textarea');
                     if (inputs) {
                         inputs.forEach(input => {
-                            addPasteSupport(input);
+                            addClipboardSupport(input);
                             if (input.id === 'card-number') {
                                 formatCardNumber(input);
                             } else if (input.id === 'card-expiry') {
@@ -5389,4 +5383,1176 @@ if (window.electronAPI?.window) {
     window.minimizeWindow = () => window.electronAPI.window.minimize();
     window.maximizeWindow = () => window.electronAPI.window.maximize();
     window.closeWindow = () => window.electronAPI.window.close();
+}
+
+// Master Console Data Management - Empty by default, loaded from Firebase
+let masterConsoleData = {
+    teamMembers: [],
+    competencies: [],
+    sprints: []
+};
+
+// Master Console Functions
+function openMasterConsole() {
+    document.getElementById('masterConsoleModal').style.display = 'block';
+    loadTeamMembersList();
+    loadCompetenciesList();
+    loadSprintsList();
+}
+
+function closeMasterConsole() {
+    document.getElementById('masterConsoleModal').style.display = 'none';
+}
+
+function switchTab(tabName) {
+    // Remove active class from all tabs and content
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+    
+    // Add active class to selected tab and content
+    event.target.classList.add('active');
+    document.getElementById(`${tabName}-tab`).classList.add('active');
+}
+
+function addTeamMember() {
+    const nameInput = document.getElementById('new-member-name');
+    const idInput = document.getElementById('new-member-id');
+    
+    if (!nameInput || !idInput) {
+        alert('Input fields not found');
+        return;
+    }
+    
+    const name = nameInput.value.trim();
+    const id = parseInt(idInput.value);
+    
+    if (!name || name.length === 0) {
+        alert('Please enter a name');
+        return;
+    }
+    
+    if (!idInput.value || isNaN(id) || id <= 0) {
+        alert('Please enter a valid ID (must be a positive number)');
+        return;
+    }
+    
+    if (masterConsoleData.teamMembers.some(member => member.id === id)) {
+        alert('ID already exists');
+        return;
+    }
+    
+    masterConsoleData.teamMembers.push({ id: id, name: name });
+    
+    nameInput.value = '';
+    idInput.value = '';
+    loadTeamMembersList();
+    updateTaskProcessorDropdowns();
+    
+    // Auto-save to Firebase after adding
+    saveMasterConsoleData();
+}
+
+function addCompetency() {
+    const name = document.getElementById('new-competency-name').value.trim();
+    const id = parseInt(document.getElementById('new-competency-id').value);
+    
+    if (!name || !id) {
+        alert('Please enter both name and ID');
+        return;
+    }
+    
+    if (masterConsoleData.competencies.some(comp => comp.id === id)) {
+        alert('ID already exists');
+        return;
+    }
+    
+    masterConsoleData.competencies.push({ id, name });
+    document.getElementById('new-competency-name').value = '';
+    document.getElementById('new-competency-id').value = '';
+    loadCompetenciesList();
+    updateTaskProcessorDropdowns();
+    
+    // Auto-save to Firebase after adding
+    saveMasterConsoleData();
+}
+
+function addSprint() {
+    const name = document.getElementById('new-sprint-name').value.trim();
+    const id = parseInt(document.getElementById('new-sprint-id').value);
+    
+    if (!name || !id) {
+        alert('Please enter both name and ID');
+        return;
+    }
+    
+    if (masterConsoleData.sprints.some(sprint => sprint.id === id)) {
+        alert('ID already exists');
+        return;
+    }
+    
+    masterConsoleData.sprints.push({ id, name });
+    document.getElementById('new-sprint-name').value = '';
+    document.getElementById('new-sprint-id').value = '';
+    loadSprintsList();
+    updateTaskProcessorDropdowns();
+    
+    // Auto-save to Firebase after adding
+    saveMasterConsoleData();
+}
+
+function deleteTeamMember(id) {
+    masterConsoleData.teamMembers = masterConsoleData.teamMembers.filter(member => member.id !== id);
+    loadTeamMembersList();
+    updateTaskProcessorDropdowns();
+    
+    // Auto-save to Firebase after deleting
+    saveMasterConsoleData();
+}
+
+function deleteCompetency(id) {
+    masterConsoleData.competencies = masterConsoleData.competencies.filter(comp => comp.id !== id);
+    loadCompetenciesList();
+    updateTaskProcessorDropdowns();
+    
+    // Auto-save to Firebase after deleting
+    saveMasterConsoleData();
+}
+
+function deleteSprint(id) {
+    masterConsoleData.sprints = masterConsoleData.sprints.filter(sprint => sprint.id !== id);
+    loadSprintsList();
+    updateTaskProcessorDropdowns();
+    
+    // Auto-save to Firebase after deleting
+    saveMasterConsoleData();
+}
+
+function loadTeamMembersList() {
+    const list = document.getElementById('team-members-list');
+    list.innerHTML = masterConsoleData.teamMembers.map(member => `
+        <div class="item-row">
+            <div class="item-info">
+                <span class="item-name">${member.name}</span>
+                <span class="item-id">ID: ${member.id}</span>
+            </div>
+            <div class="item-actions">
+                <button class="item-btn delete" onclick="deleteTeamMember(${member.id})">Delete</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function loadCompetenciesList() {
+    const list = document.getElementById('competencies-list');
+    list.innerHTML = masterConsoleData.competencies.map(comp => `
+        <div class="item-row">
+            <div class="item-info">
+                <span class="item-name">${comp.name}</span>
+                <span class="item-id">ID: ${comp.id}</span>
+            </div>
+            <div class="item-actions">
+                <button class="item-btn delete" onclick="deleteCompetency(${comp.id})">Delete</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function loadSprintsList() {
+    const list = document.getElementById('sprints-list');
+    list.innerHTML = masterConsoleData.sprints.map(sprint => `
+        <div class="item-row">
+            <div class="item-info">
+                <span class="item-name">${sprint.name}</span>
+                <span class="item-id">ID: ${sprint.id}</span>
+            </div>
+            <div class="item-actions">
+                <button class="item-btn delete" onclick="deleteSprint(${sprint.id})">Delete</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function saveMasterConsoleData() {
+    console.log('saveMasterConsoleData called');
+    console.log('Current masterConsoleData:', masterConsoleData);
+    
+    try {
+        // Save to localStorage as backup
+        localStorage.setItem('masterConsoleData', JSON.stringify(masterConsoleData));
+        console.log('Saved to localStorage');
+        
+        // Save to Firebase
+        await saveMasterDataToFirebase();
+        console.log('Saved to Firebase successfully');
+        
+        alert('Master console data saved successfully!');
+    } catch (error) {
+        console.error('Error saving master console data:', error);
+        alert('Failed to save master console data. Please try again.');
+    }
+}
+
+async function saveMasterDataToFirebase() {
+    console.log('saveMasterDataToFirebase called');
+    
+    const currentUser = authSystem.currentUser;
+    console.log('Current user:', currentUser);
+    
+    if (!currentUser) {
+        throw new Error('No authenticated user');
+    }
+    
+    const userId = currentUser.id;
+    
+    // Save each data type separately
+    await Promise.all([
+        saveTeamMembersToFirebase(userId),
+        saveCompetenciesToFirebase(userId),
+        saveSprintsToFirebase(userId)
+    ]);
+}
+
+async function saveTeamMembersToFirebase(userId) {
+    const url = `${FIREBASE_URL}/${userId}/master-console/masterConsoleData/teamMembers.json`;
+    console.log('Saving team members to:', url);
+    console.log('Team members data:', masterConsoleData.teamMembers);
+    
+    try {
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(masterConsoleData.teamMembers || [])
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Failed to save team members: ${response.status}`);
+        }
+        
+        console.log('Team members saved successfully');
+    } catch (error) {
+        console.error('Error saving team members:', error);
+        throw error;
+    }
+}
+
+async function saveCompetenciesToFirebase(userId) {
+    const url = `${FIREBASE_URL}/${userId}/master-console/masterConsoleData/competencies.json`;
+    console.log('Saving competencies to:', url);
+    console.log('Competencies data:', masterConsoleData.competencies);
+    
+    try {
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(masterConsoleData.competencies || [])
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Failed to save competencies: ${response.status}`);
+        }
+        
+        console.log('Competencies saved successfully');
+    } catch (error) {
+        console.error('Error saving competencies:', error);
+        throw error;
+    }
+}
+
+async function saveSprintsToFirebase(userId) {
+    const url = `${FIREBASE_URL}/${userId}/master-console/masterConsoleData/sprints.json`;
+    console.log('Saving sprints to:', url);
+    console.log('Sprints data:', masterConsoleData.sprints);
+    
+    try {
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(masterConsoleData.sprints || [])
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Failed to save sprints: ${response.status}`);
+        }
+        
+        console.log('Sprints saved successfully');
+    } catch (error) {
+        console.error('Error saving sprints:', error);
+        throw error;
+    }
+}
+
+// Load master console data on startup
+async function loadMasterConsoleData() {
+    try {
+        // Try to load from Firebase first
+        await loadMasterDataFromFirebase();
+    } catch (error) {
+        console.log('Failed to load from Firebase, using localStorage backup:', error);
+        
+        // Fallback to localStorage
+        const saved = localStorage.getItem('masterConsoleData');
+        if (saved) {
+            masterConsoleData = JSON.parse(saved);
+        }
+    }
+    
+    updateTaskProcessorDropdowns();
+}
+
+async function loadMasterDataFromFirebase() {
+    const currentUser = authSystem.currentUser;
+    if (!currentUser) {
+        throw new Error('No authenticated user');
+    }
+    
+    const userId = currentUser.id;
+    
+    // Load each data type separately
+    await Promise.all([
+        loadTeamMembersFromFirebase(userId),
+        loadCompetenciesFromFirebase(userId), 
+        loadSprintsFromFirebase(userId)
+    ]);
+}
+
+async function loadTeamMembersFromFirebase(userId) {
+    const url = `${FIREBASE_URL}/${userId}/master-console/masterConsoleData/teamMembers.json`;
+    
+    try {
+        const response = await fetch(url, {
+            method: 'GET'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data) {
+                masterConsoleData.teamMembers = data || [];
+                console.log('Team members loaded from Firebase:', masterConsoleData.teamMembers);
+            }
+        } else {
+            console.log('No team members data found in Firebase');
+            masterConsoleData.teamMembers = [];
+        }
+    } catch (error) {
+        console.error('Error loading team members:', error);
+        masterConsoleData.teamMembers = [];
+    }
+}
+
+async function loadCompetenciesFromFirebase(userId) {
+    const url = `${FIREBASE_URL}/${userId}/master-console/masterConsoleData/competencies.json`;
+    
+    try {
+        const response = await fetch(url, {
+            method: 'GET'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data) {
+                masterConsoleData.competencies = data || [];
+                console.log('Competencies loaded from Firebase:', masterConsoleData.competencies);
+            }
+        } else {
+            console.log('No competencies data found in Firebase');
+            masterConsoleData.competencies = [];
+        }
+    } catch (error) {
+        console.error('Error loading competencies:', error);
+        masterConsoleData.competencies = [];
+    }
+}
+
+async function loadSprintsFromFirebase(userId) {
+    const url = `${FIREBASE_URL}/${userId}/master-console/masterConsoleData/sprints.json`;
+    
+    try {
+        const response = await fetch(url, {
+            method: 'GET'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data) {
+                masterConsoleData.sprints = data || [];
+                console.log('Sprints loaded from Firebase:', masterConsoleData.sprints);
+            }
+        } else {
+            console.log('No sprints data found in Firebase');
+            masterConsoleData.sprints = [];
+        }
+    } catch (error) {
+        console.error('Error loading sprints:', error);
+        masterConsoleData.sprints = [];
+    }
+}
+
+// Tasks Processing Modal Functions
+let extractedTasks = [];
+
+function openTasksModal() {
+    document.getElementById('tasksModal').style.display = 'block';
+    updateTaskProcessorDropdowns();
+}
+
+function updateTaskProcessorDropdowns() {
+    // Ensure masterConsoleData exists and has the required arrays
+    if (!masterConsoleData) {
+        masterConsoleData = { teamMembers: [], competencies: [], sprints: [] };
+    }
+    if (!masterConsoleData.teamMembers) masterConsoleData.teamMembers = [];
+    if (!masterConsoleData.competencies) masterConsoleData.competencies = [];
+    if (!masterConsoleData.sprints) masterConsoleData.sprints = [];
+    
+    // Update bulk dropdowns
+    const bulkAssignedTo = document.getElementById('bulk-assigned-to');
+    const bulkCompetency = document.getElementById('bulk-competency');
+    
+    if (bulkAssignedTo) {
+        bulkAssignedTo.innerHTML = `
+            <option value="">Assigned To</option>
+            ${masterConsoleData.teamMembers.map(member => `<option value="${member.id}">${member.name}</option>`).join('')}
+        `;
+    }
+    
+    if (bulkCompetency) {
+        bulkCompetency.innerHTML = `
+            <option value="">Competency</option>
+            ${masterConsoleData.competencies.map(comp => `<option value="${comp.id}">${comp.name}</option>`).join('')}
+        `;
+    }
+    
+    // Update individual task dropdowns if table exists
+    updateIndividualTaskDropdowns();
+}
+
+function updateIndividualTaskDropdowns() {
+    const table = document.getElementById('tasks-table-body');
+    if (!table) return;
+    
+    // Update all select elements in the table
+    const assigneeSelects = table.querySelectorAll('select[onchange*="assignedTo"]');
+    assigneeSelects.forEach(select => {
+        const currentValue = select.value;
+        select.innerHTML = `
+            <option value="">Select Assignee</option>
+            ${masterConsoleData.teamMembers.map(member => 
+                `<option value="${member.id}" ${currentValue == member.id ? 'selected' : ''}>${member.name}</option>`
+            ).join('')}
+        `;
+    });
+    
+    const competencySelects = table.querySelectorAll('select[onchange*="competency"]');
+    competencySelects.forEach(select => {
+        const currentValue = select.value;
+        select.innerHTML = `
+            <option value="">Select Competency</option>
+            ${masterConsoleData.competencies.map(comp => 
+                `<option value="${comp.id}" ${currentValue == comp.id ? 'selected' : ''}>${comp.name}</option>`
+            ).join('')}
+        `;
+    });
+}
+
+function closeTasksModal() {
+    document.getElementById('tasksModal').style.display = 'none';
+    clearTaskInput();
+}
+
+function clearTaskInput() {
+    document.getElementById('task-input-text').value = '';
+    document.getElementById('bulk-assigned-to').value = '';
+    document.getElementById('bulk-competency').value = '';
+    document.getElementById('tasks-results-section').style.display = 'none';
+    document.getElementById('approve-all-btn').style.display = 'none';
+    extractedTasks = [];
+}
+
+function addManualTask() {
+    // Create an empty task object
+    const emptyTask = {
+        taskName: '',
+        assignedTo: '',
+        dueDate: '',
+        sprint: '',
+        competency: '',
+        codingHours: 0,
+        testingHours: 0,
+        reviewHours: 0
+    };
+    
+    // Add the empty task to the extracted tasks array
+    extractedTasks.push(emptyTask);
+    
+    // Show the results section if it's not already visible
+    document.getElementById('tasks-results-section').style.display = 'block';
+    document.getElementById('approve-all-btn').style.display = 'inline-flex';
+    
+    // Re-render the task table with the new empty row
+    displayExtractedTasks();
+}
+
+function processTaskInput() {
+    const inputText = document.getElementById('task-input-text').value.trim();
+    if (!inputText) {
+        alert('Please paste task data to process.');
+        return;
+    }
+
+    // Get bulk selections
+    const bulkAssignedTo = document.getElementById('bulk-assigned-to').value;
+    const bulkCompetency = document.getElementById('bulk-competency').value;
+
+    try {
+        // Try to parse as JSON first
+        let tasks = [];
+        
+        if (inputText.startsWith('{') || inputText.startsWith('[')) {
+            // JSON input
+            const jsonData = JSON.parse(inputText);
+            if (Array.isArray(jsonData)) {
+                tasks = jsonData;
+            } else {
+                tasks = [jsonData];
+            }
+        } else {
+            // Text input - use simple parsing for now
+            tasks = parseTextTasks(inputText);
+        }
+
+        extractedTasks = tasks.map(task => {
+            const extracted = extractTaskDetails(task);
+            // Apply bulk selections if not already set
+            if (bulkAssignedTo && !extracted.assignedTo) {
+                extracted.assignedTo = bulkAssignedTo;
+            }
+            if (bulkCompetency && !extracted.competency) {
+                extracted.competency = bulkCompetency;
+            }
+            return extracted;
+        });
+        
+        displayExtractedTasks();
+        
+    } catch (error) {
+        console.error('Error processing task input:', error);
+        alert('Error processing input. Please check the format and try again.');
+    }
+}
+
+function parseTextTasks(text) {
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    const tasks = [];
+    let currentTaskLines = [];
+
+    for (const line of lines) {
+        if (/^\d+\s*-\s*/.test(line)) {
+            // New task starts
+            if (currentTaskLines.length > 0) {
+                tasks.push({ rawText: currentTaskLines.join('\n') });
+                currentTaskLines = [];
+            }
+        }
+        currentTaskLines.push(line);
+    }
+
+    // Push the last task block
+    if (currentTaskLines.length > 0) {
+        tasks.push({ rawText: currentTaskLines.join('\n') });
+    }
+
+    return tasks;
+}
+
+function extractTaskDetails(task) {
+    // Extract details from task object or text
+    const extracted = {
+        id: Date.now() + Math.random(),
+        taskName: '',
+        assignedTo: '',
+        dueDate: '',
+        sprint: '',
+        competency: '',
+        codingHours: 0,
+        testingHours: 0,
+        reviewHours: 0,
+        approved: false,
+        originalData: task
+    };
+
+    // Handle both object and string inputs - preserve original case for task name extraction
+    const originalText = (typeof task === 'object') ? 
+        (task.rawText || task.TaskName || task.MDDescription || task.Notes || '') :
+        task.toString();
+    const text = originalText.toLowerCase(); // Only use lowercase for pattern matching
+    
+
+    // Extract task name and sprint from task number format - use original text to preserve case
+    const taskNameMatch = originalText.match(/^(\d+)\s*-\s*([^-]+?)\s*-\s*(.+)$/m);
+    if (taskNameMatch) {
+        const [_, taskNumber, sprintName, taskDesc] = taskNameMatch;
+        extracted.taskName = `${taskNumber} - ${sprintName.trim()} - ${taskDesc.trim()}`.trim();
+        
+        // Find matching sprint in dropdown and set ID instead of name
+        const cleanSprintName = sprintName.trim();
+        const matchingSprint = masterConsoleData.sprints.find(sprint => 
+            sprint.name.toLowerCase() === cleanSprintName.toLowerCase()
+        );
+        extracted.sprint = matchingSprint ? matchingSprint.id : cleanSprintName;
+    } else {
+        // For tasks without ID-Sprint-Description format, use originalText since task object is empty
+        const taskText = originalText;
+            
+        // Remove coding/testing hours lines to get clean task description
+        const cleanTaskText = taskText.replace(/\n?(?:coding|testing|review)\s*hrs?.*$/gim, '').trim();
+        
+        // Check if there's a sprint mentioned in the task (could be extracted from object or text)
+        let sprintName = '{Sprint}';
+        if (typeof task === 'object' && (task.SprintID || task.TaskSprintID)) {
+            sprintName = task.SprintID || task.TaskSprintID;
+            // Capitalize first letter
+            sprintName = sprintName.charAt(0).toUpperCase() + sprintName.slice(1);
+        }
+        
+        // If cleanTaskText is empty, use the original text up to the first newline
+        const finalTaskText = cleanTaskText || taskText.split('\n')[0].trim();
+        
+        // Format as {ID} - {Sprint} - Description
+        extracted.taskName = `{ID} - ${sprintName} - ${finalTaskText}`;
+        
+        // Find matching sprint in dropdown and set ID instead of name
+        const matchingSprint = masterConsoleData.sprints.find(sprint => 
+            sprint.name.toLowerCase() === sprintName.toLowerCase()
+        );
+        extracted.sprint = matchingSprint ? matchingSprint.id : sprintName;
+    }
+    
+    // Auto-detect sprint from task name if not already set
+    if (!extracted.sprint || extracted.sprint === '{Sprint}') {
+        extracted.sprint = autoDetectSprint(extracted.taskName);
+    }
+
+    // Set due date to end of next month
+    const now = new Date();
+    let year = now.getFullYear();
+    let month = now.getMonth() + 2; // next month (0-based)
+    if (month > 12) {
+        month = 1;
+        year += 1;
+    }
+    const lastDay = new Date(year, month, 0).getDate();
+    extracted.dueDate = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+    // Helper function to extract hours for each category
+    function extractHours(text, category) {
+        const pattern = new RegExp(`${category}\\s*(?:hrs?)?\\s*[:\\-]?\\s*(\\d+(?:\\.\\d+)?)`, 'i');
+        const match = text.match(pattern);
+        
+        if (!match) return 0;
+
+        let value = parseFloat(match[1]);
+        
+        // Check if it's in minutes
+        const minPattern = new RegExp(`${category}.*(?:mins?|minutes?)`, 'i');
+        const isInMinutes = minPattern.test(text);
+        
+        // Convert if necessary - default is hours, convert minutes to hours
+        if (isInMinutes) {
+            value = value / 60;
+        }
+
+        // Round to 2 decimal places and convert to minutes for storage
+        return parseFloat((value * 60).toFixed(2));
+    }
+
+    // Extract hours for all categories
+    extracted.codingHours = extractHours(text, 'coding');
+    extracted.testingHours = extractHours(text, 'testing');
+    extracted.reviewHours = extractHours(text, 'review');
+
+    // Handle any object-specific fields and defaults
+    if (typeof task === 'object') {
+        extracted.assignedTo = task.AssignedTo || task.AssignedBy || '';
+        extracted.competency = task.CompetencyID || '';
+        extracted.sprint = task.SprintID || task.TaskSprintID || extracted.sprint;
+        
+        // If no hours were extracted from text, try object properties
+        if (!extracted.codingHours && task.ExpectedHours) {
+            extracted.codingHours = task.ExpectedHours * 60; // Convert to minutes
+        }
+    }
+
+    return extracted;
+}
+
+function autoDetectSprint(taskName) {
+    if (!taskName || !masterConsoleData || !masterConsoleData.sprints) {
+        return '';
+    }
+    
+    // Extract sprint from {ID} - {Sprint} - {Description} pattern
+    const taskPattern = /^(\d+)\s*-\s*([^-]+?)\s*-\s*(.+)$/;
+    const match = taskName.match(taskPattern);
+    
+    if (!match) {
+        return '';
+    }
+    
+    const extractedSprint = match[2].trim();
+    
+    // Find exact matching sprint in dropdown options
+    for (const sprint of masterConsoleData.sprints) {
+        if (sprint.name.toLowerCase() === extractedSprint.toLowerCase()) {
+            return sprint.id; // Return sprint ID for dropdown selection
+        }
+    }
+    
+    // If no exact match, try partial matching
+    for (const sprint of masterConsoleData.sprints) {
+        if (sprint.name.toLowerCase().includes(extractedSprint.toLowerCase()) || 
+            extractedSprint.toLowerCase().includes(sprint.name.toLowerCase())) {
+            return sprint.id;
+        }
+    }
+    
+    return '';
+}
+
+function displayExtractedTasks() {
+    const resultsSection = document.getElementById('tasks-results-section');
+    const tableBody = document.getElementById('tasks-table-body');
+    const tasksCount = document.getElementById('tasks-count');
+    const approveAllBtn = document.getElementById('approve-all-btn');
+
+    resultsSection.style.display = 'block';
+    tasksCount.textContent = `(${extractedTasks.length} task${extractedTasks.length > 1 ? 's' : ''} found)`;
+    approveAllBtn.style.display = 'inline-flex';
+
+    tableBody.innerHTML = extractedTasks.map((task, index) => `
+        <tr>
+            <td class="task-name-cell">
+                <input type="text" value="${task.taskName}" 
+                       onchange="updateTaskField(${index}, 'taskName', this.value)" 
+                       class="task-name-input">
+            </td>
+            <td>
+                <select onchange="updateTaskField(${index}, 'assignedTo', this.value)" 
+                        class="task-select-input" style="width: 140px;">
+                    <option value="">Select Assignee</option>
+                    ${masterConsoleData.teamMembers.map(member => 
+                        `<option value="${member.id}" ${task.assignedTo == member.id ? 'selected' : ''}>${member.name}</option>`
+                    ).join('')}
+                </select>
+            </td>
+            <td>
+                <input type="date" value="${task.dueDate}" 
+                       onchange="updateTaskField(${index}, 'dueDate', this.value)" 
+                       class="task-hours-input" style="width: 130px;">
+            </td>
+            <td>
+                <select onchange="updateTaskField(${index}, 'sprint', this.value)"
+                        class="task-select-input" style="width: 100px;">
+                    <option value="">Select Sprint</option>
+                    ${masterConsoleData.sprints.map(sprint => 
+                        `<option value="${sprint.id}" ${task.sprint == sprint.id ? 'selected' : ''}>${sprint.name}</option>`
+                    ).join('')}
+                </select>
+            </td>
+            <td>
+                <select onchange="updateTaskField(${index}, 'competency', this.value)"
+                        class="task-select-input" style="width: 120px;">
+                    <option value="">Select Competency</option>
+                    ${masterConsoleData.competencies.map(comp => 
+                        `<option value="${comp.id}" ${task.competency == comp.id ? 'selected' : ''}>${comp.name}</option>`
+                    ).join('')}
+                </select>
+            </td>
+            <td>
+                <input type="number" value="${(task.codingHours / 60).toFixed(2)}" 
+                       onchange="updateTaskField(${index}, 'codingHours', this.value * 60)" 
+                       class="task-hours-input" min="0" step="0.5" title="Time in hours">
+            </td>
+            <td>
+                <input type="number" value="${(task.testingHours / 60).toFixed(2)}" 
+                       onchange="updateTaskField(${index}, 'testingHours', this.value * 60)" 
+                       class="task-hours-input" min="0" step="0.5" title="Time in hours">
+            </td>
+            <td>
+                <input type="number" value="${(task.reviewHours / 60).toFixed(2)}" 
+                       onchange="updateTaskField(${index}, 'reviewHours', this.value * 60)" 
+                       class="task-hours-input" min="0" step="0.5" title="Time in hours">
+            </td>
+            <td>
+                <div class="task-actions">
+                    <button class="task-approve-btn ${task.approved ? 'task-approved' : ''}" 
+                            onclick="approveTask(${index})">
+                        ${task.approved ? '✅ Approved' : '👍 Approve'}
+                    </button>
+                    <button class="task-delete-btn" 
+                            onclick="deleteTask(${index})" 
+                            title="Delete Task">
+                        🗑️
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function updateTaskField(taskIndex, field, value) {
+    if (extractedTasks[taskIndex]) {
+        if (field.includes('Hours')) {
+            // Convert to minutes if needed
+            extractedTasks[taskIndex][field] = parseInt(value) || 0;
+        } else if (field === 'competency') {
+            // Handle competency mapping
+            extractedTasks[taskIndex][field] = value;
+        } else {
+            extractedTasks[taskIndex][field] = value;
+        }
+    }
+}
+
+function deleteTask(taskIndex) {
+    if (confirm('Are you sure you want to delete this task?')) {
+        extractedTasks.splice(taskIndex, 1);
+        displayExtractedTasks();
+        
+        // Update task count and hide approve all button if no tasks
+        if (extractedTasks.length === 0) {
+            document.getElementById('tasks-results-section').style.display = 'none';
+            document.getElementById('approve-all-btn').style.display = 'none';
+        }
+    }
+}
+
+async function approveTask(taskIndex) {
+    if (extractedTasks[taskIndex]) {
+        extractedTasks[taskIndex].approved = true;
+        displayExtractedTasks();
+        
+        // Generate JSON for this specific task
+        const approvedTask = generateTaskJSON(extractedTasks[taskIndex]);
+        
+        try {
+            // Save individual task to database
+            const taskId = await saveIndividualTaskToDatabase(approvedTask, taskIndex);
+            showTaskJSON(approvedTask, `Task ${taskIndex + 1} Approved & Saved (ID: ${taskId})`);
+        } catch (error) {
+            console.error('Error saving task to database:', error);
+            showTaskJSON(approvedTask, `Task ${taskIndex + 1} Approved (Save Failed)`);
+            alert('Task approved but failed to save to database. Please try again.');
+        }
+    }
+}
+
+async function approveAllTasks() {
+    extractedTasks.forEach(task => task.approved = true);
+    displayExtractedTasks();
+    
+    // Generate JSON for all tasks
+    const allTasksJSON = extractedTasks.map(task => generateTaskJSON(task));
+    
+    try {
+        // Save all tasks individually to database
+        const results = await saveBulkTasksToDatabase(allTasksJSON);
+        
+        if (results.failed.length === 0) {
+            showTaskJSON(allTasksJSON, `All ${results.saved.length} Tasks Approved & Saved Individually`);
+        } else {
+            const message = `${results.saved.length} Tasks Saved, ${results.failed.length} Failed`;
+            showTaskJSON(allTasksJSON, message);
+            alert(`Some tasks failed to save: ${results.failed.map(f => `Task ${f.index + 1}`).join(', ')}`);
+        }
+    } catch (error) {
+        console.error('Error saving tasks to database:', error);
+        showTaskJSON(allTasksJSON, 'All Tasks Approved (Save Failed)');
+        alert('Tasks approved but failed to save to database. Please try again.');
+    }
+}
+
+async function saveIndividualTaskToDatabase(taskData, taskIndex = null) {
+    const currentUser = authSystem.currentUser;
+    if (!currentUser) {
+        throw new Error('No authenticated user');
+    }
+    
+    const userId = currentUser.id;
+    const url = `${FIREBASE_URL}/${userId}/processed-tasks.json`;
+    
+    try {
+        // First, try to get existing tasks
+        let existingTasks = [];
+        try {
+            const getResponse = await fetch(url);
+            if (getResponse.ok) {
+                const data = await getResponse.json();
+                if (data && data.tasks) {
+                    existingTasks = data.tasks;
+                }
+            }
+        } catch (e) {
+            console.log('No existing tasks file, creating new one');
+        }
+        
+        // Extract task ID from task name if it contains an ID
+        const taskIdMatch = taskData.TaskName?.match(/^(\d+)/);
+        const extractedTaskId = taskIdMatch ? taskIdMatch[1] : null;
+        
+        const taskDocument = {
+            task_name: taskData.TaskName || 'Untitled Task',
+            task_id: extractedTaskId,
+            assigned_to: taskData.AssignedTo || '',
+            due_date: taskData.DueDate || '',
+            sprint: taskData.Sprint || '',
+            competency: taskData.CompetencyID || '',
+            coding_hrs: taskData.CodingHours || 0,
+            testing_hrs: taskData.TestingHours || 0,
+            review_hrs: taskData.ReviewHours || 0,
+            is_approved: true,
+            created_at: new Date().toISOString(),
+            unique_id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        };
+        
+        // Add the new task to existing tasks
+        existingTasks.push(taskDocument);
+        
+        const finalData = {
+            tasks: existingTasks,
+            lastUpdated: new Date().toISOString(),
+            totalTasks: existingTasks.length
+        };
+        
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(finalData)
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to save task to Realtime Database');
+        }
+        
+        console.log(`Task saved to Firebase Realtime Database successfully`);
+        return taskDocument.unique_id;
+    } catch (error) {
+        console.error('Database save error:', error);
+        throw error;
+    }
+}
+
+async function saveBulkTasksToDatabase(tasksData) {
+    const savedTasks = [];
+    const failedTasks = [];
+    
+    for (let i = 0; i < tasksData.length; i++) {
+        try {
+            const taskId = await saveIndividualTaskToDatabase(tasksData[i], i);
+            savedTasks.push({ taskId, index: i });
+        } catch (error) {
+            console.error(`Failed to save task ${i}:`, error);
+            failedTasks.push({ index: i, error: error.message });
+        }
+    }
+    
+    return {
+        saved: savedTasks,
+        failed: failedTasks,
+        totalProcessed: tasksData.length
+    };
+}
+
+async function getProcessedTasksFromDatabase() {
+    const currentUser = authSystem.currentUser;
+    if (!currentUser) {
+        throw new Error('No authenticated user');
+    }
+    
+    const userId = currentUser.id;
+    const url = `${FIREBASE_URL}/${userId}/processed-tasks.json`;
+    
+    try {
+        const response = await fetch(url, {
+            method: 'GET'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            console.log('Processed tasks retrieved from Firebase Realtime Database successfully');
+            return data;
+        } else {
+            throw new Error('No processed tasks found in database');
+        }
+    } catch (error) {
+        console.error('Database retrieval error:', error);
+        throw error;
+    }
+}
+
+async function listUserTasks() {
+    const currentUser = authSystem.currentUser;
+    if (!currentUser) {
+        throw new Error('No authenticated user');
+    }
+    
+    try {
+        // This would require Firebase Storage list API or Firestore for better querying
+        // For now, we'll just note that tasks are stored individually
+        console.log('Individual tasks are stored in Firebase Storage under individual-tasks/ directory');
+        console.log('Each task has a unique ID and can be retrieved using getIndividualTaskFromDatabase(taskId)');
+    } catch (error) {
+        console.error('Error listing tasks:', error);
+        throw error;
+    }
+}
+
+function generateTaskJSON(task) {
+    // Find assigned member by ID
+    const assignedMember = masterConsoleData.teamMembers.find(member => member.id == task.assignedTo);
+    const assignedMemberName = assignedMember ? assignedMember.name : "";
+    const assignedMemberID = assignedMember ? assignedMember.id : null;
+    
+    // Find sprint by name
+    const sprintData = masterConsoleData.sprints.find(sprint => sprint.name.toLowerCase() === task.sprint.toLowerCase());
+    const sprintName = sprintData ? sprintData.name : task.sprint;
+    
+    // Convert minutes to hours for storage
+    const codingHours = (task.codingHours / 60).toFixed(2);
+    const testingHours = (task.testingHours / 60).toFixed(2);
+    const reviewHours = (task.reviewHours / 60).toFixed(2);
+    
+    return {
+        "TaskName": task.taskName,
+        "AssignedBy": assignedMemberName,
+        "AssignedTo": assignedMemberName, 
+        "AssignedToEmpID": assignedMemberID,
+        "DueDate": task.dueDate,
+        "Sprint": sprintName,
+        "CompetencyID": parseInt(task.competency) || null,
+        "CodingHours": parseFloat(codingHours),
+        "TestingHours": parseFloat(testingHours),
+        "ReviewHours": parseFloat(reviewHours),
+        "ExpectedHours": parseFloat(codingHours) + parseFloat(testingHours) + parseFloat(reviewHours),
+        "GetUpdates": "0",
+        "InformTo": "",
+        "IsTaskEdited": false,
+        "ModuleName": "",
+        "MDDescription": task.taskName,
+        "NonBillableTask": "",
+        "Notes": `<p>${task.taskName}</p>`,
+        "OwnerID": "2754",
+        "SendEmail": true,
+        "SprintID": task.sprint || "2370",
+        "TaskBillingStatuses": [
+            {
+                "BillingStatusID": 206,
+                "BillingStatusName": "Coding",
+                "StatusEfforts": task.codingHours,
+                "Color": "#0067a5",
+                "CompanyID": 0,
+                "CreatedOn": "0001-01-01 00:00:00",
+                "ModifiedOn": "0001-01-01 00:00:00", 
+                "ProjectID": 824,
+                "IsActive": true,
+                "IsMandatory": true,
+                "expectedHours": task.codingHours,
+                "showInput": false
+            },
+            {
+                "BillingStatusID": 207,
+                "BillingStatusName": "Testing",
+                "Color": "#e25822",
+                "StatusEfforts": task.testingHours,
+                "CompanyID": 0,
+                "CreatedOn": "0001-01-01 00:00:00",
+                "ModifiedOn": "0001-01-01 00:00:00",
+                "ProjectID": 824,
+                "IsActive": true,
+                "IsMandatory": false,
+                "expectedHours": task.testingHours,
+                "showInput": false
+            },
+            {
+                "BillingStatusID": 18682,
+                "BillingStatusName": "Review",
+                "Color": "#8DB600",
+                "StatusEfforts": task.reviewHours * 60,
+                "CompanyID": 0,
+                "CreatedOn": "0001-01-01 00:00:00",
+                "ModifiedOn": "0001-01-01 00:00:00",
+                "ProjectID": 824,
+                "IsActive": true,
+                "IsMandatory": false,
+                "expectedHours": task.reviewHours,
+                "showInput": false
+            }
+        ],
+        "TaskCategoryID": 1,
+        "TaskDifficultyID": 2,
+        "TaskDueDate": task.dueDate ? `${task.dueDate} 00:00:00` : "2025-07-31 00:00:00",
+        "TaskID": "",
+        "TaskName": task.taskName,
+        "TaskPriorityID": 2,
+        "TaskProjectID": 824,
+        "TaskProjectName": "THD - Support",
+        "TaskStatusID": 452,
+        "TaskSprintID": "",
+        "TaskWithMultipleCategories": [],
+        "UserStoryID": "0",
+        "TaskHistories": [],
+        "Predictions": []
+    };
+}
+
+function showTaskJSON(jsonData, title) {
+    // Create a modal or alert to show the JSON
+    const jsonString = JSON.stringify(jsonData, null, 2);
+    
+    // Create a temporary modal to show JSON
+    const existingJsonModal = document.getElementById('json-output-modal');
+    if (existingJsonModal) {
+        existingJsonModal.remove();
+    }
+    
+    const jsonModal = document.createElement('div');
+    jsonModal.id = 'json-output-modal';
+    jsonModal.className = 'modal';
+    jsonModal.style.display = 'block';
+    jsonModal.innerHTML = `
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3 class="modal-title">${title}</h3>
+                <button class="close-btn" onclick="document.getElementById('json-output-modal').remove()">&times;</button>
+            </div>
+            <div class="task-json-output">
+                <pre>${jsonString}</pre>
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn" onclick="copyJSONToClipboard('${jsonString.replace(/"/g, '\\"')}')">
+                    📋 Copy JSON
+                </button>
+                <button class="modal-btn cancel" onclick="document.getElementById('json-output-modal').remove()">
+                    Close
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(jsonModal);
+}
+
+function copyJSONToClipboard(jsonString) {
+    navigator.clipboard.writeText(jsonString.replace(/\\"/g, '"')).then(() => {
+        alert('JSON copied to clipboard!');
+    }).catch(err => {
+        console.error('Failed to copy JSON: ', err);
+    });
 }
