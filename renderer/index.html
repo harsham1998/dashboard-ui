@@ -832,9 +832,10 @@
                                 <th>Due Date</th>
                                 <th>Sprint</th>
                                 <th>Competency</th>
-                                <th>Coding (hrs)</th>
-                                <th>Testing (hrs)</th>
-                                <th>Review (hrs)</th>
+                                <th>Coding</th>
+                                <th>Testing</th>
+                                <th>Review</th>
+                                <th>Budget</th>
                                 <th>Action</th>
                             </tr>
                         </thead>
@@ -847,6 +848,10 @@
 
             <div class="modal-actions">
                 <button class="modal-btn cancel" onclick="closeTasksModal()">Cancel</button>
+                <button class="modal-btn save-btn" id="save-all-btn" onclick="saveAllTasks()" style="display: none;">
+                    <span>💾</span>
+                    Save All Tasks
+                </button>
                 <button class="modal-btn" id="approve-all-btn" onclick="approveAllTasks()" style="display: none;">
                     <span>✅</span>
                     Approve All Tasks
@@ -911,6 +916,42 @@
             <div class="modal-actions">
                 <button class="modal-btn" onclick="saveMasterConsoleData()">💾 Save All Changes</button>
                 <button class="modal-btn secondary" onclick="closeMasterConsole()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task Name Modal -->
+    <div id="taskNameModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 class="modal-title">📝 Edit Task Name</h3>
+                <button class="close-btn" onclick="closeTaskNameModal()">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Task Name (Multi-line):</label>
+                    <textarea id="taskNameText" class="modal-textarea" rows="8" placeholder="Enter task name and description..."></textarea>
+                </div>
+                <div class="form-info">
+                    <small>💡 First line will be used as Task Name, complete text will be saved as Description in JSON</small>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Task ID:</label>
+                        <input type="text" id="taskIdInput" class="modal-input" placeholder="e.g., 1234">
+                    </div>
+                    <div class="form-group">
+                        <label>Budget Hours:</label>
+                        <input type="number" id="budgetHoursInput" class="modal-input" placeholder="e.g., 20" min="0" step="0.5">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-actions">
+                <button class="modal-btn" onclick="saveTaskNameModal()">💾 Save</button>
+                <button class="modal-btn cancel" onclick="closeTaskNameModal()">Cancel</button>
             </div>
         </div>
     </div>

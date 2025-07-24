@@ -2019,7 +2019,7 @@ function initializeFirebaseListeners() {
     refreshData();
     
     // Poll every 5 seconds
-    firebaseListener = setInterval(refreshData, 5000);
+    firebaseListener = setInterval(refreshData, 30000);
     
     console.log('🚀 Firebase polling initialized - checking every 5 seconds');
 }
@@ -5795,10 +5795,499 @@ async function loadSprintsFromFirebase(userId) {
 
 // Tasks Processing Modal Functions
 let extractedTasks = [];
+let budgetData = {}; // Store budget data for tasks
 
-function openTasksModal() {
+// Flag to track if this is a fresh modal session
+let isModalSession = false;
+
+async function openTasksModal() {
     document.getElementById('tasksModal').style.display = 'block';
     updateTaskProcessorDropdowns();
+    
+    // Mark this as a fresh modal session
+    isModalSession = true;
+    
+    // Load budget data and existing unapproved tasks from Firebase only on fresh open
+    await loadBudgetData();
+    await loadUnapprovedTasks();
+}
+
+// Budget Management Functions
+async function loadBudgetData() {
+    try {
+        const currentUser = authSystem.currentUser;
+        if (!currentUser) {
+            console.log('No authenticated user, skipping budget data load');
+            return;
+        }
+
+        const userId = currentUser.id;
+        const url = `${FIREBASE_URL}/${userId}/budgets.json`;
+        
+        const response = await fetch(url, { method: 'GET' });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data) {
+                budgetData = data;
+                console.log('Loaded budget data:', budgetData);
+            }
+        } else {
+            console.log('No budget data found, starting fresh');
+            budgetData = {};
+        }
+    } catch (error) {
+        console.error('Error loading budget data:', error);
+        budgetData = {};
+    }
+}
+
+async function saveBudgetData() {
+    try {
+        const currentUser = authSystem.currentUser;
+        if (!currentUser) {
+            throw new Error('No authenticated user');
+        }
+
+        const userId = currentUser.id;
+        const url = `${FIREBASE_URL}/${userId}/budgets.json`;
+        
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(budgetData)
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to save budget data: ${response.status}`);
+        }
+        
+        console.log('Budget data saved successfully');
+        
+    } catch (error) {
+        console.error('Error saving budget data:', error);
+        throw error;
+    }
+}
+
+async function getBudgetDisplay(task, index) {
+    if (!task.taskId) {
+        return '<span style="color: #fbbf24;">No ID</span>';
+    }
+    
+    const budget = budgetData[task.taskId];
+    if (!budget) {
+        return '<span style="color: #fbbf24;">No Budget</span>';
+    }
+    
+    // Calculate current hours (sum of coding, testing, review hours converted to hours)
+    const currentHours = ((task.codingHours || 0) + (task.testingHours || 0) + (task.reviewHours || 0)) / 60;
+    
+    // Get past hours for this task ID from previously approved tasks
+    const pastHours = await getPastHours(task.taskId);
+    const totalCurrentHours = currentHours + pastHours;
+    
+    const budgetHours = budget.total_budget || 0;
+    const isOverBudget = totalCurrentHours > budgetHours;
+    
+    const color = isOverBudget ? '#ef4444' : totalCurrentHours > budgetHours * 0.8 ? '#f59e0b' : '#22c55e';
+    
+    return `<span style="color: ${color};">${totalCurrentHours.toFixed(1)}/${budgetHours}</span>`;
+}
+
+async function getPastHours(taskId) {
+    if (!taskId) return 0;
+    
+    try {
+        const currentUser = authSystem.currentUser;
+        if (!currentUser) return 0;
+
+        const userId = currentUser.id;
+        const url = `${FIREBASE_URL}/${userId}/processed-tasks.json`;
+        
+        const response = await fetch(url, { method: 'GET' });
+        if (!response.ok) return 0;
+        
+        const data = await response.json();
+        if (!data || !data.tasks) return 0;
+        
+        // Find all approved tasks with the same task_id (extracted from task_name)
+        const approvedTasksWithSameId = data.tasks.filter(task => {
+            if (!task.is_approved) return false;
+            
+            // Extract task ID from task name
+            const taskIdMatch = task.task_name.match(/^(\d+)/);
+            const extractedTaskId = taskIdMatch ? taskIdMatch[1] : '';
+            
+            return extractedTaskId === taskId;
+        });
+        
+        // Sum up all hours from approved tasks with same ID
+        const totalPastHours = approvedTasksWithSameId.reduce((total, task) => {
+            const codingHrs = task.coding_hrs || 0;
+            const testingHrs = task.testing_hrs || 0;
+            const reviewHrs = task.review_hrs || 0;
+            return total + codingHrs + testingHrs + reviewHrs;
+        }, 0);
+        
+        console.log(`Found ${approvedTasksWithSameId.length} approved tasks for Task ID ${taskId} with total ${totalPastHours} hours`);
+        return totalPastHours;
+        
+    } catch (error) {
+        console.error('Error calculating past hours:', error);
+        return 0;
+    }
+}
+
+async function loadUnapprovedTasks() {
+    try {
+        console.log('loadUnapprovedTasks called, current extractedTasks count:', extractedTasks.length);
+        const currentUser = authSystem.currentUser;
+        if (!currentUser) {
+            console.log('No authenticated user, skipping unapproved tasks load');
+            return;
+        }
+
+        const userId = currentUser.id;
+        const url = `${FIREBASE_URL}/${userId}/processed-tasks.json`;
+        
+        const response = await fetch(url, {
+            method: 'GET'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data && data.tasks) {
+                // Filter only unapproved tasks and convert them to extracted task format
+                const unapprovedTasks = data.tasks.filter(task => !task.is_approved);
+                console.log('Found unapproved tasks in Firebase:', unapprovedTasks.length);
+                
+                // Only load if this is a fresh modal session and extractedTasks is empty
+                if (isModalSession && extractedTasks.length === 0) {
+                    console.log('Loading unapproved tasks into empty extractedTasks array (fresh session)');
+                    // Convert Firebase tasks back to extracted task format
+                    extractedTasks = unapprovedTasks.map(task => {
+                        // Extract task ID from task name if it follows the ID - Sprint - Description format
+                        const taskIdMatch = task.task_name.match(/^(\d+)/);
+                        const taskId = taskIdMatch ? taskIdMatch[1] : '';
+                        
+                        return {
+                            id: task.unique_id || task.task_id,
+                            taskName: task.task_name,
+                            fullDescription: task.task_name, // Use task name as description initially
+                            assignedTo: findTeamMemberIdByName(task.assigned_to),
+                            dueDate: task.due_date ? task.due_date.split(' ')[0] : '', // Extract date part
+                            sprint: task.sprint,
+                            competency: task.competency,
+                            codingHours: (task.coding_hrs || 0) * 60, // Convert hours to minutes
+                            testingHours: (task.testing_hrs || 0) * 60,
+                            reviewHours: (task.review_hrs || 0) * 60,
+                            taskId: taskId,
+                            budgetHours: 0,
+                            approved: false,
+                            originalData: { ...task, saved: true } // Mark as already saved since it came from Firebase
+                        };
+                    });
+                
+                    console.log(`Loaded ${extractedTasks.length} unapproved tasks`);
+                
+                    // Display the loaded tasks if any exist
+                    if (extractedTasks.length > 0) {
+                        await displayExtractedTasks();
+                    }
+                } else {
+                    console.log('Skipping load - either not fresh session or extractedTasks not empty');
+                }
+                
+                // Mark that we've processed the initial load
+                isModalSession = false;
+            }
+        } else {
+            console.log('No processed tasks found in Firebase');
+        }
+    } catch (error) {
+        console.error('Error loading unapproved tasks:', error);
+    }
+}
+
+function findTeamMemberIdByName(memberName) {
+    if (!memberName || !masterConsoleData.teamMembers) return '';
+    
+    const member = masterConsoleData.teamMembers.find(m => 
+        m.name.toLowerCase() === memberName.toLowerCase()
+    );
+    return member ? member.id : '';
+}
+
+async function saveProcessedTasksToFirebase() {
+    try {
+        const currentUser = authSystem.currentUser;
+        if (!currentUser) {
+            throw new Error('No authenticated user');
+        }
+
+        const userId = currentUser.id;
+        const url = `${FIREBASE_URL}/${userId}/processed-tasks.json`;
+        
+        // Get existing tasks first
+        let existingTasks = [];
+        try {
+            const getResponse = await fetch(url, { method: 'GET' });
+            if (getResponse.ok) {
+                const existingData = await getResponse.json();
+                if (existingData && existingData.tasks) {
+                    existingTasks = existingData.tasks;
+                }
+            }
+        } catch (error) {
+            console.log('No existing tasks found, starting fresh');
+        }
+        
+        // Convert newly processed tasks to Firebase format (unapproved)
+        console.log('All extracted tasks:', extractedTasks);
+        console.log('Tasks to filter:', extractedTasks.map(t => ({ taskName: t.taskName, hasOriginalData: !!t.originalData, isSaved: t.originalData?.saved })));
+        
+        const newTasksToSave = extractedTasks
+            .filter(task => {
+                // Check if task is already saved
+                const isSaved = task.originalData && task.originalData.saved;
+                // Check if task already exists in Firebase by task name
+                const existsInFirebase = existingTasks.some(existingTask => 
+                    existingTask.task_name === task.taskName
+                );
+                
+                const shouldSave = !isSaved && !existsInFirebase;
+                console.log(`Task "${task.taskName}" - isSaved: ${isSaved}, existsInFirebase: ${existsInFirebase}, shouldSave: ${shouldSave}`);
+                return shouldSave;
+            }) // Only save new tasks that don't already exist
+            .map(task => {
+                const taskData = generateTaskJSON(task);
+                return {
+                    task_name: taskData.TaskName,
+                    task_id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    assigned_to: taskData.AssignedTo || '',
+                    due_date: taskData.DueDate || '',
+                    sprint: taskData.Sprint || '',
+                    competency: taskData.CompetencyID || '',
+                    coding_hrs: taskData.CodingHours || 0,
+                    testing_hrs: taskData.TestingHours || 0,
+                    review_hrs: taskData.ReviewHours || 0,
+                    is_approved: false, // Save as unapproved initially
+                    created_at: new Date().toISOString(),
+                    unique_id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+                };
+            });
+        
+        if (newTasksToSave.length === 0) {
+            console.log('No new tasks to save');
+            return;
+        }
+        
+        // Add new tasks to existing ones
+        const allTasks = [...existingTasks, ...newTasksToSave];
+        
+        const finalData = {
+            tasks: allTasks,
+            lastUpdated: new Date().toISOString(),
+            totalTasks: allTasks.length
+        };
+        
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(finalData)
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Failed to save tasks: ${response.status}`);
+        }
+        
+        console.log(`Saved ${newTasksToSave.length} new processed tasks to Firebase`);
+        
+        // Mark the tasks as having been saved
+        extractedTasks.forEach(task => {
+            if (!task.originalData) {
+                task.originalData = { saved: true };
+            } else {
+                task.originalData.saved = true;
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error saving processed tasks:', error);
+        // Don't show alert here as it's automatic save
+    }
+}
+
+async function updateTaskApprovalStatus(taskIndex, isApproved) {
+    try {
+        const currentUser = authSystem.currentUser;
+        if (!currentUser) {
+            throw new Error('No authenticated user');
+        }
+
+        const userId = currentUser.id;
+        const url = `${FIREBASE_URL}/${userId}/processed-tasks.json`;
+        
+        // Get existing tasks
+        const getResponse = await fetch(url, { method: 'GET' });
+        if (!getResponse.ok) {
+            throw new Error('Failed to load existing tasks');
+        }
+        
+        const existingData = await getResponse.json();
+        if (!existingData || !existingData.tasks) {
+            throw new Error('No existing tasks found');
+        }
+        
+        // Find the task to update using task name and other identifiers
+        const taskToUpdate = extractedTasks[taskIndex];
+        const taskIndex_in_firebase = existingData.tasks.findIndex(task => 
+            task.task_name === taskToUpdate.taskName && 
+            task.is_approved === false // Only update unapproved tasks
+        );
+        
+        if (taskIndex_in_firebase === -1) {
+            throw new Error('Task not found in Firebase');
+        }
+        
+        // Update the approval status
+        existingData.tasks[taskIndex_in_firebase].is_approved = isApproved;
+        existingData.lastUpdated = new Date().toISOString();
+        
+        // Save back to Firebase
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(existingData)
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Failed to update task approval: ${response.status}`);
+        }
+        
+        console.log(`Updated approval status for task: ${taskToUpdate.taskName}`);
+        
+    } catch (error) {
+        console.error('Error updating task approval status:', error);
+        throw error;
+    }
+}
+
+async function updateTaskInFirebase(taskIndex) {
+    try {
+        console.log(`updateTaskInFirebase called for task ${taskIndex}`);
+        const currentUser = authSystem.currentUser;
+        if (!currentUser) {
+            console.log('No current user, skipping save');
+            throw new Error('No authenticated user');
+        }
+
+        const userId = currentUser.id;
+        const url = `${FIREBASE_URL}/${userId}/processed-tasks.json`;
+        console.log('Firebase URL:', url);
+        
+        // Get existing tasks
+        console.log('Fetching existing tasks...');
+        const getResponse = await fetch(url, { method: 'GET' });
+        if (!getResponse.ok) {
+            console.log('No existing tasks to update, response not ok:', getResponse.status);
+            throw new Error('Failed to fetch existing tasks');
+        }
+        
+        let existingData = await getResponse.json();
+        if (!existingData || !existingData.tasks) {
+            console.log('No existing tasks found, creating new structure');
+            // Create initial structure if it doesn't exist
+            existingData = {
+                tasks: [],
+                lastUpdated: new Date().toISOString(),
+                totalTasks: 0
+            };
+        }
+        
+        console.log('Existing tasks count:', existingData.tasks.length);
+        
+        // Find the task to update
+        const taskToUpdate = extractedTasks[taskIndex];
+        console.log('Looking for task to update:', taskToUpdate.taskName);
+        console.log('Original task name from Firebase:', taskToUpdate.originalData?.task_name);
+        
+        // Use original task name for matching if available, otherwise use current name
+        const taskNameToMatch = taskToUpdate.originalData?.task_name || taskToUpdate.taskName;
+        const taskIndex_in_firebase = existingData.tasks.findIndex(task => 
+            task.task_name === taskNameToMatch
+        );
+        
+        console.log(`Searching for task name "${taskNameToMatch}" in Firebase, found at index:`, taskIndex_in_firebase);
+        
+        if (taskIndex_in_firebase === -1) {
+            console.log('Task not found in Firebase, creating new task entry');
+            // Create new task entry if not found
+            const taskData = generateTaskJSON(taskToUpdate);
+            const newTask = {
+                task_name: taskData.TaskName,
+                task_id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                assigned_to: taskData.AssignedTo || '',
+                due_date: taskData.DueDate || '',
+                sprint: taskData.Sprint || '',
+                competency: taskData.CompetencyID || '',
+                coding_hrs: taskData.CodingHours || 0,
+                testing_hrs: taskData.TestingHours || 0,
+                review_hrs: taskData.ReviewHours || 0,
+                is_approved: false,
+                created_at: new Date().toISOString(),
+                unique_id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+            };
+            existingData.tasks.push(newTask);
+        } else {
+            // Update the task data
+            const taskData = generateTaskJSON(taskToUpdate);
+            console.log('Generated task data for update:', taskData);
+            console.log('Updating task_name from:', existingData.tasks[taskIndex_in_firebase].task_name, 'to:', taskData.TaskName);
+            
+            existingData.tasks[taskIndex_in_firebase] = {
+                ...existingData.tasks[taskIndex_in_firebase], // Keep existing metadata
+                task_name: taskData.TaskName,
+                assigned_to: taskData.AssignedTo || '',
+                due_date: taskData.DueDate || '',
+                sprint: taskData.Sprint || '',
+                competency: taskData.CompetencyID || '',
+                coding_hrs: taskData.CodingHours || 0,
+                testing_hrs: taskData.TestingHours || 0,
+                review_hrs: taskData.ReviewHours || 0,
+                // Keep the original approval status and timestamps
+            };
+        }
+        
+        existingData.lastUpdated = new Date().toISOString();
+        
+        // Save back to Firebase
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(existingData)
+        });
+        
+        if (response.ok) {
+            console.log(`Successfully saved task update: ${taskToUpdate.taskName}`);
+        } else {
+            console.error('Failed to save task update, response not ok:', response.status);
+            throw new Error(`Save failed with status: ${response.status}`);
+        }
+        
+    } catch (error) {
+        console.error('Error saving task update:', error);
+        throw error; // Re-throw so saveAllTasks can handle it
+    }
 }
 
 function updateTaskProcessorDropdowns() {
@@ -5863,6 +6352,77 @@ function updateIndividualTaskDropdowns() {
 function closeTasksModal() {
     document.getElementById('tasksModal').style.display = 'none';
     clearTaskInput();
+    // Clear extracted tasks to prevent duplicates on next open
+    extractedTasks = [];
+    // Reset session flag
+    isModalSession = false;
+    console.log('Cleared extractedTasks array and reset session flag on modal close');
+}
+
+// Task Name Modal Functions
+let currentTaskIndex = -1;
+
+function openTaskNameModal(taskIndex) {
+    currentTaskIndex = taskIndex;
+    const task = extractedTasks[taskIndex];
+    
+    if (task) {
+        // Use fullDescription if available, otherwise use taskName
+        document.getElementById('taskNameText').value = task.fullDescription || task.taskName || '';
+        
+        // Set task ID and budget
+        document.getElementById('taskIdInput').value = task.taskId || '';
+        
+        // Get current budget for this task ID
+        const currentBudget = task.taskId && budgetData[task.taskId] ? budgetData[task.taskId].total_budget : '';
+        document.getElementById('budgetHoursInput').value = currentBudget;
+        
+        document.getElementById('taskNameModal').style.display = 'block';
+    }
+}
+
+function closeTaskNameModal() {
+    document.getElementById('taskNameModal').style.display = 'none';
+    currentTaskIndex = -1;
+}
+
+async function saveTaskNameModal() {
+    if (currentTaskIndex >= 0 && extractedTasks[currentTaskIndex]) {
+        const newTaskName = document.getElementById('taskNameText').value;
+        const taskId = document.getElementById('taskIdInput').value.trim();
+        const budgetHours = parseFloat(document.getElementById('budgetHoursInput').value) || 0;
+        
+        // Store the full text for description (will be used in JSON generation)
+        extractedTasks[currentTaskIndex].fullDescription = newTaskName;
+        
+        // Update the task name field to show only the first line
+        const firstLine = newTaskName.split('\n')[0].trim();
+        extractedTasks[currentTaskIndex].taskName = firstLine;
+        
+        // Update task ID
+        extractedTasks[currentTaskIndex].taskId = taskId;
+        
+        // Save budget data if both task ID and budget are provided
+        if (taskId && budgetHours > 0) {
+            budgetData[taskId] = {
+                task_id: taskId,
+                total_budget: budgetHours
+            };
+            
+            try {
+                await saveBudgetData();
+                showNotification(`Budget saved: Task ${taskId} - ${budgetHours} hours`);
+            } catch (error) {
+                console.error('Error saving budget:', error);
+                showNotification('Failed to save budget data');
+            }
+        }
+        
+        // Refresh the table to show updated task name and budget
+        await displayExtractedTasks();
+        
+        closeTaskNameModal();
+    }
 }
 
 function clearTaskInput() {
@@ -5874,10 +6434,11 @@ function clearTaskInput() {
     extractedTasks = [];
 }
 
-function addManualTask() {
+async function addManualTask() {
     // Create an empty task object
     const emptyTask = {
         taskName: '',
+        fullDescription: '',
         assignedTo: '',
         dueDate: '',
         sprint: '',
@@ -5895,10 +6456,13 @@ function addManualTask() {
     document.getElementById('approve-all-btn').style.display = 'inline-flex';
     
     // Re-render the task table with the new empty row
-    displayExtractedTasks();
+    await displayExtractedTasks();
+    
+    // Save the new manual task to Firebase immediately (as unapproved)
+    await saveProcessedTasksToFirebase();
 }
 
-function processTaskInput() {
+async function processTaskInput() {
     const inputText = document.getElementById('task-input-text').value.trim();
     if (!inputText) {
         alert('Please paste task data to process.');
@@ -5926,7 +6490,7 @@ function processTaskInput() {
             tasks = parseTextTasks(inputText);
         }
 
-        extractedTasks = tasks.map(task => {
+        const newTasks = tasks.map(task => {
             const extracted = extractTaskDetails(task);
             // Apply bulk selections if not already set
             if (bulkAssignedTo && !extracted.assignedTo) {
@@ -5938,7 +6502,13 @@ function processTaskInput() {
             return extracted;
         });
         
-        displayExtractedTasks();
+        // Append new tasks to existing tasks instead of replacing
+        extractedTasks = [...extractedTasks, ...newTasks];
+        
+        await displayExtractedTasks();
+        
+        // Save newly processed tasks to Firebase immediately (as unapproved)
+        await saveProcessedTasksToFirebase();
         
     } catch (error) {
         console.error('Error processing task input:', error);
@@ -5975,6 +6545,7 @@ function extractTaskDetails(task) {
     const extracted = {
         id: Date.now() + Math.random(),
         taskName: '',
+        fullDescription: '', // Store complete task text for description
         assignedTo: '',
         dueDate: '',
         sprint: '',
@@ -5982,6 +6553,8 @@ function extractTaskDetails(task) {
         codingHours: 0,
         testingHours: 0,
         reviewHours: 0,
+        taskId: '', // Task ID for budget tracking
+        budgetHours: 0, // Budget hours for this task
         approved: false,
         originalData: task
     };
@@ -5999,12 +6572,15 @@ function extractTaskDetails(task) {
         const [_, taskNumber, sprintName, taskDesc] = taskNameMatch;
         extracted.taskName = `${taskNumber} - ${sprintName.trim()} - ${taskDesc.trim()}`.trim();
         
-        // Find matching sprint in dropdown and set ID instead of name
+        // Store the task ID
+        extracted.taskId = taskNumber.trim();
+        
+        // Store the full original text as description
+        extracted.fullDescription = originalText.trim();
+        
+        // Store sprint name (will be converted to ID in JSON generation)
         const cleanSprintName = sprintName.trim();
-        const matchingSprint = masterConsoleData.sprints.find(sprint => 
-            sprint.name.toLowerCase() === cleanSprintName.toLowerCase()
-        );
-        extracted.sprint = matchingSprint ? matchingSprint.id : cleanSprintName;
+        extracted.sprint = cleanSprintName;
     } else {
         // For tasks without ID-Sprint-Description format, use originalText since task object is empty
         const taskText = originalText;
@@ -6026,11 +6602,11 @@ function extractTaskDetails(task) {
         // Format as {ID} - {Sprint} - Description
         extracted.taskName = `{ID} - ${sprintName} - ${finalTaskText}`;
         
-        // Find matching sprint in dropdown and set ID instead of name
-        const matchingSprint = masterConsoleData.sprints.find(sprint => 
-            sprint.name.toLowerCase() === sprintName.toLowerCase()
-        );
-        extracted.sprint = matchingSprint ? matchingSprint.id : sprintName;
+        // Store the full original text as description
+        extracted.fullDescription = originalText.trim();
+        
+        // Store sprint name (will be converted to ID in JSON generation)
+        extracted.sprint = sprintName;
     }
     
     // Auto-detect sprint from task name if not already set
@@ -6109,7 +6685,7 @@ function autoDetectSprint(taskName) {
     // Find exact matching sprint in dropdown options
     for (const sprint of masterConsoleData.sprints) {
         if (sprint.name.toLowerCase() === extractedSprint.toLowerCase()) {
-            return sprint.id; // Return sprint ID for dropdown selection
+            return sprint.name; // Return sprint name
         }
     }
     
@@ -6117,33 +6693,40 @@ function autoDetectSprint(taskName) {
     for (const sprint of masterConsoleData.sprints) {
         if (sprint.name.toLowerCase().includes(extractedSprint.toLowerCase()) || 
             extractedSprint.toLowerCase().includes(sprint.name.toLowerCase())) {
-            return sprint.id;
+            return sprint.name;
         }
     }
     
     return '';
 }
 
-function displayExtractedTasks() {
+async function displayExtractedTasks() {
     const resultsSection = document.getElementById('tasks-results-section');
     const tableBody = document.getElementById('tasks-table-body');
     const tasksCount = document.getElementById('tasks-count');
     const approveAllBtn = document.getElementById('approve-all-btn');
+    const saveAllBtn = document.getElementById('save-all-btn');
 
     resultsSection.style.display = 'block';
     tasksCount.textContent = `(${extractedTasks.length} task${extractedTasks.length > 1 ? 's' : ''} found)`;
     approveAllBtn.style.display = 'inline-flex';
+    saveAllBtn.style.display = 'inline-flex';
 
     tableBody.innerHTML = extractedTasks.map((task, index) => `
         <tr>
             <td class="task-name-cell">
-                <input type="text" value="${task.taskName}" 
-                       onchange="updateTaskField(${index}, 'taskName', this.value)" 
-                       class="task-name-input">
+                <div class="task-name-container">
+                    <input type="text" value="${task.taskName}" 
+                           onchange="updateTaskField(${index}, 'taskName', this.value)" 
+                           class="task-name-input">
+                    <button class="enlarge-btn" onclick="openTaskNameModal(${index})" title="Enlarge task name">
+                        🔍
+                    </button>
+                </div>
             </td>
             <td>
                 <select onchange="updateTaskField(${index}, 'assignedTo', this.value)" 
-                        class="task-select-input" style="width: 140px;">
+                        class="task-select-input" style="width: 110px;">
                     <option value="">Select Assignee</option>
                     ${masterConsoleData.teamMembers.map(member => 
                         `<option value="${member.id}" ${task.assignedTo == member.id ? 'selected' : ''}>${member.name}</option>`
@@ -6153,14 +6736,14 @@ function displayExtractedTasks() {
             <td>
                 <input type="date" value="${task.dueDate}" 
                        onchange="updateTaskField(${index}, 'dueDate', this.value)" 
-                       class="task-hours-input" style="width: 130px;">
+                       class="task-hours-input" style="width: 110px;">
             </td>
             <td>
                 <select onchange="updateTaskField(${index}, 'sprint', this.value)"
                         class="task-select-input" style="width: 100px;">
                     <option value="">Select Sprint</option>
                     ${masterConsoleData.sprints.map(sprint => 
-                        `<option value="${sprint.id}" ${task.sprint == sprint.id ? 'selected' : ''}>${sprint.name}</option>`
+                        `<option value="${sprint.name}" ${task.sprint === sprint.name ? 'selected' : ''}>${sprint.name}</option>`
                     ).join('')}
                 </select>
             </td>
@@ -6188,6 +6771,11 @@ function displayExtractedTasks() {
                        onchange="updateTaskField(${index}, 'reviewHours', this.value * 60)" 
                        class="task-hours-input" min="0" step="0.5" title="Time in hours">
             </td>
+            <td class="budget-column">
+                <span class="budget-display" id="budget-${index}">
+                    Loading...
+                </span>
+            </td>
             <td>
                 <div class="task-actions">
                     <button class="task-approve-btn ${task.approved ? 'task-approved' : ''}" 
@@ -6203,9 +6791,28 @@ function displayExtractedTasks() {
             </td>
         </tr>
     `).join('');
+    
+    // Update budget displays asynchronously
+    await updateAllBudgetDisplays();
 }
 
-function updateTaskField(taskIndex, field, value) {
+async function updateAllBudgetDisplays() {
+    for (let i = 0; i < extractedTasks.length; i++) {
+        const task = extractedTasks[i];
+        const budgetElement = document.getElementById(`budget-${i}`);
+        if (budgetElement) {
+            try {
+                const budgetDisplay = await getBudgetDisplay(task, i);
+                budgetElement.innerHTML = budgetDisplay;
+            } catch (error) {
+                console.error(`Error updating budget display for task ${i}:`, error);
+                budgetElement.innerHTML = '<span style="color: #ef4444;">Error</span>';
+            }
+        }
+    }
+}
+
+async function updateTaskField(taskIndex, field, value) {
     if (extractedTasks[taskIndex]) {
         if (field.includes('Hours')) {
             // Convert to minutes if needed
@@ -6213,48 +6820,299 @@ function updateTaskField(taskIndex, field, value) {
         } else if (field === 'competency') {
             // Handle competency mapping
             extractedTasks[taskIndex][field] = value;
+        } else if (field === 'taskName') {
+            // Handle task name changes
+            extractedTasks[taskIndex][field] = value;
+            
+            // Update fullDescription to match if it was the same as taskName
+            if (!extractedTasks[taskIndex].fullDescription || 
+                extractedTasks[taskIndex].fullDescription === extractedTasks[taskIndex].taskName) {
+                extractedTasks[taskIndex].fullDescription = value;
+            }
+            
+            // Re-extract Task ID from new task name if it follows the ID - Sprint - Description format
+            const taskNameMatch = value.match(/^(\d+)\s*-\s*([^-]+?)\s*-\s*(.+)$/);
+            if (taskNameMatch) {
+                const [_, taskNumber] = taskNameMatch;
+                extractedTasks[taskIndex].taskId = taskNumber.trim();
+            }
+            
+            console.log(`Updated task name to: "${value}", extracted Task ID: ${extractedTasks[taskIndex].taskId}`);
         } else {
             extractedTasks[taskIndex][field] = value;
         }
+        
+        // Update budget display if hours or task ID changed
+        if (field.includes('Hours') || field === 'taskName') {
+            // Update the specific budget display for this task
+            const budgetElement = document.getElementById(`budget-${taskIndex}`);
+            if (budgetElement) {
+                try {
+                    const budgetDisplay = await getBudgetDisplay(extractedTasks[taskIndex], taskIndex);
+                    budgetElement.innerHTML = budgetDisplay;
+                } catch (error) {
+                    console.error(`Error updating budget display for task ${taskIndex}:`, error);
+                }
+            }
+        }
+        
+        // Remove auto-save since we have manual save button now
+        // await updateTaskInFirebase(taskIndex);
     }
 }
 
-function deleteTask(taskIndex) {
-    if (confirm('Are you sure you want to delete this task?')) {
-        extractedTasks.splice(taskIndex, 1);
-        displayExtractedTasks();
+async function saveTask(taskIndex) {
+    try {
+        await updateTaskInFirebase(taskIndex);
+        showNotification(`Task ${taskIndex + 1} saved successfully!`);
+    } catch (error) {
+        console.error('Error saving task:', error);
+        showNotification('Failed to save task. Please try again.');
+    }
+}
+
+async function saveAllTasks() {
+    try {
+        console.log('Starting saveAllTasks, tasks count:', extractedTasks.length);
         
-        // Update task count and hide approve all button if no tasks
         if (extractedTasks.length === 0) {
-            document.getElementById('tasks-results-section').style.display = 'none';
-            document.getElementById('approve-all-btn').style.display = 'none';
+            showNotification('No tasks to save.');
+            return;
+        }
+        
+        let savedCount = 0;
+        let errorCount = 0;
+        
+        for (let i = 0; i < extractedTasks.length; i++) {
+            try {
+                console.log(`Saving task ${i + 1}: ${extractedTasks[i].taskName}`);
+                await updateTaskInFirebase(i);
+                savedCount++;
+                console.log(`Successfully saved task ${i + 1}`);
+            } catch (error) {
+                console.error(`Error saving task ${i + 1}:`, error);
+                errorCount++;
+            }
+        }
+        
+        console.log(`Save complete: ${savedCount} saved, ${errorCount} failed`);
+        
+        if (errorCount === 0) {
+            showNotification(`All ${savedCount} tasks saved successfully!`);
+        } else {
+            showNotification(`${savedCount} tasks saved, ${errorCount} failed. Check console for details.`);
+        }
+        
+    } catch (error) {
+        console.error('Error in saveAllTasks:', error);
+        showNotification('Failed to save tasks. Please try again.');
+    }
+}
+
+async function deleteTaskFromFirebase(taskToDelete) {
+    try {
+        const currentUser = authSystem.currentUser;
+        if (!currentUser) {
+            throw new Error('No authenticated user');
+        }
+
+        const userId = currentUser.id;
+        const url = `${FIREBASE_URL}/${userId}/processed-tasks.json`;
+        
+        // Get existing tasks
+        const getResponse = await fetch(url, { method: 'GET' });
+        if (!getResponse.ok) {
+            console.log('No existing tasks to delete from');
+            return;
+        }
+        
+        const existingData = await getResponse.json();
+        if (!existingData || !existingData.tasks) {
+            console.log('No existing tasks found');
+            return;
+        }
+        
+        // Find and remove the task by name
+        const updatedTasks = existingData.tasks.filter(task => 
+            task.task_name !== taskToDelete.taskName
+        );
+        
+        // Update Firebase with the filtered tasks
+        const finalData = {
+            tasks: updatedTasks,
+            lastUpdated: new Date().toISOString(),
+            totalTasks: updatedTasks.length
+        };
+        
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(finalData)
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Failed to delete task: ${response.status}`);
+        }
+        
+        console.log(`Deleted task "${taskToDelete.taskName}" from Firebase`);
+        
+    } catch (error) {
+        console.error('Error deleting task from Firebase:', error);
+        throw error;
+    }
+}
+
+async function deleteTask(taskIndex) {
+    if (confirm('Are you sure you want to delete this task?')) {
+        const taskToDelete = extractedTasks[taskIndex];
+        console.log('Deleting task:', taskToDelete.taskName);
+        console.log('Task originalData:', taskToDelete.originalData);
+        
+        try {
+            // Always try to delete from Firebase (task might exist even if not marked as saved)
+            console.log('Attempting to delete from Firebase...');
+            await deleteTaskFromFirebase(taskToDelete);
+            console.log('Successfully deleted from Firebase');
+            
+            // Remove from local array
+            extractedTasks.splice(taskIndex, 1);
+            await displayExtractedTasks();
+            
+            // Update task count and hide buttons if no tasks
+            if (extractedTasks.length === 0) {
+                document.getElementById('tasks-results-section').style.display = 'none';
+                document.getElementById('approve-all-btn').style.display = 'none';
+                document.getElementById('save-all-btn').style.display = 'none';
+            }
+            
+            showNotification('Task deleted successfully!');
+        } catch (error) {
+            console.error('Error deleting task:', error);
+            showNotification('Failed to delete task from database.');
         }
     }
 }
 
 async function approveTask(taskIndex) {
     if (extractedTasks[taskIndex]) {
-        extractedTasks[taskIndex].approved = true;
-        displayExtractedTasks();
+        const task = extractedTasks[taskIndex];
+        
+        // Validate budget before approval
+        if (!(await validateTaskForApproval(task))) {
+            return; // Validation failed, don't approve
+        }
+        
+        task.approved = true;
+        await displayExtractedTasks();
         
         // Generate JSON for this specific task
-        const approvedTask = generateTaskJSON(extractedTasks[taskIndex]);
+        const approvedTask = generateTaskJSON(task);
         
         try {
-            // Save individual task to database
-            const taskId = await saveIndividualTaskToDatabase(approvedTask, taskIndex);
-            showTaskJSON(approvedTask, `Task ${taskIndex + 1} Approved & Saved (ID: ${taskId})`);
+            // Update only the approval status in Firebase
+            await updateTaskApprovalStatus(taskIndex, true);
+            showTaskJSON(approvedTask, `Task ${taskIndex + 1} Approved & Updated`);
         } catch (error) {
-            console.error('Error saving task to database:', error);
-            showTaskJSON(approvedTask, `Task ${taskIndex + 1} Approved (Save Failed)`);
-            alert('Task approved but failed to save to database. Please try again.');
+            console.error('Error updating task approval status:', error);
+            showTaskJSON(approvedTask, `Task ${taskIndex + 1} Approved (Update Failed)`);
+            alert('Task approved but failed to update in database. Please try again.');
         }
     }
 }
 
+async function validateTaskForApproval(task) {
+    // Check if task has ID
+    if (!task.taskId) {
+        alert('Cannot approve task: Task ID is missing. Please set a Task ID in the task name popup.');
+        return false;
+    }
+    
+    // Check if budget exists for this task ID
+    const budget = budgetData[task.taskId];
+    if (!budget || !budget.total_budget) {
+        alert(`Cannot approve task: No budget set for Task ID ${task.taskId}. Please set a budget in the task name popup.`);
+        return false;
+    }
+    
+    // Calculate total hours (current + past)
+    const currentHours = ((task.codingHours || 0) + (task.testingHours || 0) + (task.reviewHours || 0)) / 60;
+    const pastHours = await getPastHours(task.taskId);
+    const totalHours = currentHours + pastHours;
+    
+    // Check if total hours exceed budget
+    if (totalHours > budget.total_budget) {
+        alert(`Cannot approve task: Total hours (${totalHours.toFixed(1)}) exceed budget (${budget.total_budget}). Please adjust hours or increase budget.`);
+        return false;
+    }
+    
+    return true;
+}
+
+async function validateTaskForApprovalSilent(task) {
+    // Check if task has ID
+    if (!task.taskId) {
+        return false;
+    }
+    
+    // Check if budget exists for this task ID
+    const budget = budgetData[task.taskId];
+    if (!budget || !budget.total_budget) {
+        return false;
+    }
+    
+    // Calculate total hours (current + past)
+    const currentHours = ((task.codingHours || 0) + (task.testingHours || 0) + (task.reviewHours || 0)) / 60;
+    const pastHours = await getPastHours(task.taskId);
+    const totalHours = currentHours + pastHours;
+    
+    // Check if total hours exceed budget
+    if (totalHours > budget.total_budget) {
+        return false;
+    }
+    
+    return true;
+}
+
+async function getValidationError(task) {
+    if (!task.taskId) {
+        return 'Task ID is missing';
+    }
+    
+    const budget = budgetData[task.taskId];
+    if (!budget || !budget.total_budget) {
+        return `No budget set for Task ID ${task.taskId}`;
+    }
+    
+    const currentHours = ((task.codingHours || 0) + (task.testingHours || 0) + (task.reviewHours || 0)) / 60;
+    const pastHours = await getPastHours(task.taskId);
+    const totalHours = currentHours + pastHours;
+    
+    if (totalHours > budget.total_budget) {
+        return `Total hours (${totalHours.toFixed(1)}) exceed budget (${budget.total_budget})`;
+    }
+    
+    return '';
+}
+
 async function approveAllTasks() {
+    // Validate all tasks before approving any
+    const validationErrors = [];
+    for (let i = 0; i < extractedTasks.length; i++) {
+        const task = extractedTasks[i];
+        if (!(await validateTaskForApprovalSilent(task))) {
+            validationErrors.push(`Task ${i + 1}: ${await getValidationError(task)}`);
+        }
+    }
+    
+    if (validationErrors.length > 0) {
+        alert(`Cannot approve all tasks. Please fix the following issues:\n\n${validationErrors.join('\n')}`);
+        return;
+    }
+    
     extractedTasks.forEach(task => task.approved = true);
-    displayExtractedTasks();
+    await displayExtractedTasks();
     
     // Generate JSON for all tasks
     const allTasksJSON = extractedTasks.map(task => generateTaskJSON(task));
@@ -6429,9 +7287,19 @@ function generateTaskJSON(task) {
     const testingHours = (task.testingHours / 60).toFixed(2);
     const reviewHours = (task.reviewHours / 60).toFixed(2);
     
+    // Prepare task name and description
+    const fullText = task.fullDescription || task.taskName || '';
+    const firstLine = fullText.split('\n')[0].trim();
+    // Limit task name to 100 characters maximum
+    const taskNameFirstLine = firstLine.length > 100 ? firstLine.substring(0, 100).trim() : firstLine;
+    
+    // Remove hours lines from description (coding hrs, testing hrs, review hrs)
+    const cleanDescription = fullText.replace(/\n?(?:coding|testing|review)\s*hrs?[:\-]*.*$/gim, '').trim();
+    const fullDescription = cleanDescription.replace(/\n/g, '\\n'); // Convert newlines to \n for JSON
+    
     return {
-        "TaskName": task.taskName,
-        "AssignedBy": assignedMemberName,
+        "TaskName": taskNameFirstLine,
+        "AssignedBy": "Harshavardhan Mandali",
         "AssignedTo": assignedMemberName, 
         "AssignedToEmpID": assignedMemberID,
         "DueDate": task.dueDate,
@@ -6445,9 +7313,9 @@ function generateTaskJSON(task) {
         "InformTo": "",
         "IsTaskEdited": false,
         "ModuleName": "",
-        "MDDescription": task.taskName,
+        "MDDescription": fullDescription,
         "NonBillableTask": "",
-        "Notes": `<p>${task.taskName}</p>`,
+        "Notes": `<p>${fullDescription.replace(/\\n/g, '<br>')}</p>`,
         "OwnerID": "2754",
         "SendEmail": true,
         "SprintID": task.sprint || "2370",
@@ -6499,7 +7367,6 @@ function generateTaskJSON(task) {
         "TaskDifficultyID": 2,
         "TaskDueDate": task.dueDate ? `${task.dueDate} 00:00:00` : "2025-07-31 00:00:00",
         "TaskID": "",
-        "TaskName": task.taskName,
         "TaskPriorityID": 2,
         "TaskProjectID": 824,
         "TaskProjectName": "THD - Support",
@@ -6533,12 +7400,14 @@ function showTaskJSON(jsonData, title) {
                 <button class="close-btn" onclick="document.getElementById('json-output-modal').remove()">&times;</button>
             </div>
             <div class="task-json-output">
-                <pre>${jsonString}</pre>
+                <div class="json-text-container">
+                    <pre id="json-text-content">${jsonString}</pre>
+                    <button class="copy-json-btn" onclick="copyJSONDirectly()" title="Copy JSON">
+                        📋 Copy
+                    </button>
+                </div>
             </div>
             <div class="modal-actions">
-                <button class="modal-btn" onclick="copyJSONToClipboard('${jsonString.replace(/"/g, '\\"')}')">
-                    📋 Copy JSON
-                </button>
                 <button class="modal-btn cancel" onclick="document.getElementById('json-output-modal').remove()">
                     Close
                 </button>
@@ -6555,4 +7424,62 @@ function copyJSONToClipboard(jsonString) {
     }).catch(err => {
         console.error('Failed to copy JSON: ', err);
     });
+}
+
+function copyJSONDirectly() {
+    const jsonElement = document.getElementById('json-text-content');
+    if (jsonElement) {
+        const jsonText = jsonElement.textContent;
+        
+        // Try using the modern clipboard API first
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(jsonText).then(() => {
+                showCopySuccess();
+            }).catch(err => {
+                console.error('Clipboard API failed:', err);
+                fallbackCopyText(jsonText);
+            });
+        } else {
+            // Fallback for older browsers
+            fallbackCopyText(jsonText);
+        }
+    }
+}
+
+function fallbackCopyText(text) {
+    // Create a temporary textarea element
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    textArea.style.top = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+        document.execCommand('copy');
+        showCopySuccess();
+    } catch (err) {
+        console.error('Fallback copy failed:', err);
+        alert('Copy failed. Please select the text manually and copy with Ctrl+C');
+    }
+    
+    document.body.removeChild(textArea);
+}
+
+function showCopySuccess() {
+    const copyBtn = document.querySelector('.copy-json-btn');
+    if (copyBtn) {
+        const originalText = copyBtn.innerHTML;
+        copyBtn.innerHTML = '✅ Copied!';
+        copyBtn.style.background = 'rgba(34, 197, 94, 0.2)';
+        copyBtn.style.borderColor = 'rgba(34, 197, 94, 0.3)';
+        
+        setTimeout(() => {
+            copyBtn.innerHTML = originalText;
+            copyBtn.style.background = '';
+            copyBtn.style.borderColor = '';
+        }, 2000);
+    }
 }

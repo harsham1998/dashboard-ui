@@ -586,7 +586,7 @@
         .search-filter-section {
             position: relative;
             flex: 1;
-            max-width: 250px;
+            max-width: 300px;
             display: flex;
             gap: 8px;
         }
@@ -1277,6 +1277,7 @@
             display: flex;
             gap: 12px;
             justify-content: flex-end;
+            margin-top: 6px;
         }
 
         .modal-btn {
@@ -1303,6 +1304,16 @@
 
         .modal-btn.cancel:hover {
             background: rgba(71, 85, 105, 0.5);
+        }
+
+        .modal-btn.save-btn {
+            background: rgba(34, 197, 94, 0.2);
+            border-color: rgba(34, 197, 94, 0.3);
+            color: #22c55e;
+        }
+
+        .modal-btn.save-btn:hover {
+            background: rgba(34, 197, 94, 0.3);
         }
 
         /* Issues/Appreciation section in modal */
@@ -3407,7 +3418,7 @@
             background: rgba(30, 41, 59, 0.4);
             border: 1px solid rgba(71, 85, 105, 0.3);
             border-radius: 6px;
-            padding: 8px 12px;
+            padding: 4px 10px;
             color: #e2e8f0;
             font-size: 13px;
             font-family: inherit;
@@ -3623,8 +3634,9 @@
         }
 
         .tasks-table-container {
-            max-height: 400px;
+            max-height: 420px; /* Height for approximately 7 rows */
             overflow-y: auto;
+            overflow-x: auto;
             border: 1px solid rgba(71, 85, 105, 0.3);
             border-radius: 8px;
         }
@@ -3659,15 +3671,102 @@
         }
 
         .task-name-cell {
-            max-width: 200px;
+            max-width: 280px;
+            min-width: 250px;
             word-wrap: break-word;
             font-weight: 500;
+        }
+        
+        .task-name-container {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .enlarge-btn {
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            color: #60a5fa;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 12px;
+            cursor: pointer;
+            min-width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        
+        .enlarge-btn:hover {
+            background: rgba(59, 130, 246, 0.3);
+            border-color: rgba(59, 130, 246, 0.5);
+            transform: scale(1.05);
+        }
+        
+        /* Reduce gaps between hours columns */
+        .tasks-table td:nth-child(6),  /* Coding hours */
+        .tasks-table td:nth-child(7),  /* Testing hours */
+        .tasks-table td:nth-child(8) { /* Review hours */
+            padding: 8px 4px;
+            width: 60px;
+        }
+        
+        .task-actions {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        /* JSON Copy Functionality */
+        .json-text-container {
+            position: relative;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(71, 85, 105, 0.3);
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+        }
+        
+        .copy-json-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            color: #60a5fa;
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        
+        .copy-json-btn:hover {
+            background: rgba(59, 130, 246, 0.3);
+            border-color: rgba(59, 130, 246, 0.5);
+            transform: translateY(-1px);
+        }
+        
+        .json-text-container pre {
+            margin: 0;
+            padding-right: 80px; /* Space for copy button */
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+            color: #e2e8f0;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
         }
 
         .task-hours-input,
         .task-select-input {
             width: 50px;
-            padding: 4px 6px;
+            padding: 6px 6px;
             background: rgba(30, 41, 59, 0.8);
             border: 1px solid rgba(71, 85, 105, 0.4);
             border-radius: 6px;
@@ -3704,6 +3803,23 @@
             background: #1f2937;
             color: #e2e8f0;
             padding: 8px;
+        }
+
+        .task-save-btn {
+            padding: 6px 12px;
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.5);
+            border-radius: 6px;
+            color: #3b82f6;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s;
+            margin-right: 4px;
+        }
+
+        .task-save-btn:hover {
+            background: rgba(59, 130, 246, 0.3);
+            border-color: rgba(59, 130, 246, 0.7);
         }
 
         .task-approve-btn {
