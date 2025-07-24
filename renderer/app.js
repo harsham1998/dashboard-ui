@@ -5961,7 +5961,7 @@ async function loadUnapprovedTasks() {
             const data = await response.json();
             if (data && data.tasks) {
                 // Filter only unapproved tasks and convert them to extracted task format
-                const unapprovedTasks = data.tasks.filter(task => !task.is_approved);
+                const unapprovedTasks = data.tasks.filter(task => task && task.task_name && !task.is_approved);
                 console.log('Found unapproved tasks in Firebase:', unapprovedTasks.length);
 
                 // Only load if this is a fresh modal session and extractedTasks is empty
@@ -6038,7 +6038,8 @@ async function saveProcessedTasksToFirebase() {
             if (getResponse.ok) {
                 const existingData = await getResponse.json();
                 if (existingData && existingData.tasks) {
-                    existingTasks = existingData.tasks;
+                    // Filter out null/undefined tasks
+                    existingTasks = existingData.tasks.filter(task => task && task.task_name);
                 }
             }
         } catch (error) {
@@ -6215,6 +6216,10 @@ async function updateTaskInFirebase(taskIndex) {
                 lastUpdated: new Date().toISOString(),
                 totalTasks: 0
             };
+        } else {
+            // Filter out null/undefined tasks
+            existingData.tasks = existingData.tasks.filter(task => task && task.task_name);
+            console.log(`Filtered existing tasks, found ${existingData.tasks.length} valid tasks`);
         }
 
         console.log('Existing tasks count:', existingData.tasks.length);
@@ -6227,7 +6232,7 @@ async function updateTaskInFirebase(taskIndex) {
         // Use original task name for matching if available, otherwise use current name
         const taskNameToMatch = taskToUpdate.originalData?.task_name || taskToUpdate.taskName;
         const taskIndex_in_firebase = existingData.tasks.findIndex(task =>
-            task.task_name === taskNameToMatch
+            task && task.task_name === taskNameToMatch
         );
 
         console.log(`Searching for task name "${taskNameToMatch}" in Firebase, found at index:`, taskIndex_in_firebase);
@@ -6522,24 +6527,42 @@ async function processTaskInput() {
 }
 
 function parseTextTasks(text) {
-    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    // Split text into lines first, keeping track of empty lines
+    const allLines = text.split('\n');
     const tasks = [];
     let currentTaskLines = [];
 
-    for (const line of lines) {
-        if (/^\d+\s*-\s*/.test(line)) {
-            // New task starts
+    for (let i = 0; i < allLines.length; i++) {
+        const line = allLines[i];
+        const trimmedLine = line.trim();
+        
+        // Check if this is a complete empty line
+        if (trimmedLine === '') {
+            // If we have accumulated task lines, save them as a task
             if (currentTaskLines.length > 0) {
-                tasks.push({ rawText: currentTaskLines.join('\n') });
+                const taskText = currentTaskLines.join('\n').trim();
+                if (taskText) {
+                    tasks.push({ rawText: taskText });
+                }
                 currentTaskLines = [];
             }
+        } else {
+            // Non-empty line, add to current task
+            currentTaskLines.push(line);
         }
-        currentTaskLines.push(line);
     }
 
-    // Push the last task block
+    // Add the last task if there are remaining lines
     if (currentTaskLines.length > 0) {
-        tasks.push({ rawText: currentTaskLines.join('\n') });
+        const taskText = currentTaskLines.join('\n').trim();
+        if (taskText) {
+            tasks.push({ rawText: taskText });
+        }
+    }
+
+    // If no tasks found, treat entire input as one task
+    if (tasks.length === 0 && text.trim()) {
+        tasks.push({ rawText: text.trim() });
     }
 
     return tasks;
