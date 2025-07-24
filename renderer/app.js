@@ -6064,16 +6064,21 @@ async function saveProcessedTasksToFirebase() {
             }) // Only save new tasks that don't already exist
             .map(task => {
                 const taskData = generateTaskJSON(task);
+                // Extract hours from TaskBillingStatuses
+                const codingStatus = taskData.TaskBillingStatuses.find(status => status.BillingStatusName === 'Coding');
+                const testingStatus = taskData.TaskBillingStatuses.find(status => status.BillingStatusName === 'Testing');
+                const reviewStatus = taskData.TaskBillingStatuses.find(status => status.BillingStatusName === 'Review');
+                
                 return {
                     task_name: taskData.TaskName,
                     task_id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                     assigned_to: taskData.AssignedTo || '',
-                    due_date: taskData.DueDate || '',
+                    due_date: taskData.TaskDueDate || '',
                     sprint: taskData.SprintID || '',
                     competency: taskData.CompetencyID || '',
-                    coding_hrs: taskData.CodingHours || 0,
-                    testing_hrs: taskData.TestingHours || 0,
-                    review_hrs: taskData.ReviewHours || 0,
+                    coding_hrs: codingStatus ? codingStatus.expectedHours : 0,
+                    testing_hrs: testingStatus ? testingStatus.expectedHours : 0,
+                    review_hrs: reviewStatus ? reviewStatus.expectedHours : 0,
                     is_approved: false, // Save as unapproved initially
                     created_at: new Date().toISOString(),
                     unique_id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
@@ -7391,7 +7396,7 @@ function generateTaskJSON(task) {
                 "showInput": false
             },
             {
-                "BillingStatusID": 18685,
+                "BillingStatusID": 18682,
                 "BillingStatusName": "Miscellaneous",
                 "Color": "#8DB600",
                 "CompanyID": 0,
@@ -7430,7 +7435,7 @@ function generateTaskJSON(task) {
                 "showInput": false
             },
             {
-                "BillingStatusID": 18682,
+                "BillingStatusID": 18685,
                 "BillingStatusName": "Review",
                 "Color": "#be0032",
                 "StatusEfforts": task.reviewHours,
@@ -7482,7 +7487,7 @@ function showTaskJSON(jsonData, title) {
         <div class="modal-content" style="max-width: 800px;">
             <div class="modal-header">
                 <h3 class="modal-title">${title}</h3>
-                <button class="close-btn" onclick="document.getElementById('json-output-modal').remove()">&times;</button>
+                <button class="close-btn" onclick="closeJsonModal()">&times;</button>
             </div>
             <div class="task-json-output">
                 <div class="json-text-container">
@@ -7494,7 +7499,7 @@ function showTaskJSON(jsonData, title) {
             </div>
             <div class="modal-actions">
                 <button class="modal-btn" onclick="submitTaskToPinestem()">📤 Submit to Pinestem API</button>
-                <button class="modal-btn cancel" onclick="document.getElementById('json-output-modal').remove()">
+                <button class="modal-btn cancel" onclick="closeJsonModal()">
                     Close
                 </button>
             </div>
@@ -7505,6 +7510,17 @@ function showTaskJSON(jsonData, title) {
     `;
 
     document.body.appendChild(jsonModal);
+}
+
+// Close JSON modal and refresh processed tasks
+function closeJsonModal() {
+    const modal = document.getElementById('json-output-modal');
+    if (modal) {
+        modal.remove();
+    }
+    
+    // Call GET API to refresh processed tasks
+    loadUnapprovedTasks();
 }
 
 // Submit task to Pinestem API
@@ -7598,10 +7614,13 @@ function showApiResponse(message, type, details = null) {
     }
     
     let detailsHtml = '';
+    let copyableUrls = '';
+    
     if (details && Array.isArray(details)) {
+        // Create detailed response section
         detailsHtml = `
             <div class="api-details" style="margin-top: 12px;">
-                <strong>Details:</strong>
+                <strong>Task Results:</strong>
                 <ul style="margin: 8px 0; padding-left: 20px;">
                     ${details.map(result => `
                         <li style="margin: 4px 0;">
@@ -7615,6 +7634,42 @@ function showApiResponse(message, type, details = null) {
                 </ul>
             </div>
         `;
+        
+        // Create full JSON response section
+        const jsonResponses = details.filter(r => r.success && r.data).map(result => {
+            const jsonString = JSON.stringify(result.data, null, 2);
+            return `
+                <div class="json-response-section" style="margin-top: 12px;">
+                    <strong>Response for ${result.task}:</strong>
+                    <div class="json-response-container" style="background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(71, 85, 105, 0.3); border-radius: 4px; padding: 12px; margin: 8px 0; font-family: monospace; font-size: 12px; max-height: 200px; overflow-y: auto;">
+                        <pre>${jsonString}</pre>
+                    </div>
+                    <button class="copy-json-btn" onclick="copyToClipboard('${jsonString.replace(/'/g, "\\'")}', this)" style="background: rgba(59, 130, 246, 0.2); border: 1px solid rgba(59, 130, 246, 0.5); border-radius: 4px; color: #3b82f6; padding: 4px 8px; cursor: pointer; font-size: 11px; margin-top: 4px;">📋 Copy JSON</button>
+                </div>
+            `;
+        }).join('');
+        
+        // Create copyable URLs for successful submissions
+        const successfulTasks = details.filter(r => r.success && r.data && r.data.EntityId);
+        if (successfulTasks.length > 0) {
+            copyableUrls = `
+                <div class="copyable-urls" style="margin-top: 12px;">
+                    <strong>Task URLs:</strong>
+                    ${successfulTasks.map(result => {
+                        const url = `https://pinestem.com/dashboard.html#/tasks/${result.data.EntityId}/details/?isPrevNext=1`;
+                        return `
+                            <div style="margin: 8px 0; padding: 8px; background: rgba(30, 41, 59, 0.5); border-radius: 4px;">
+                                <div style="font-weight: 500; margin-bottom: 4px;">${result.task}</div>
+                                <div style="font-family: monospace; font-size: 12px; word-break: break-all; margin-bottom: 4px;">${url}</div>
+                                <button class="copy-url-btn" onclick="copyToClipboard('${url}', this)" style="background: rgba(34, 197, 94, 0.2); border: 1px solid rgba(34, 197, 94, 0.5); border-radius: 4px; color: #22c55e; padding: 4px 8px; cursor: pointer; font-size: 11px;">🔗 Copy URL</button>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+        
+        detailsHtml += jsonResponses + copyableUrls;
     }
     
     content.innerHTML = `
@@ -7626,14 +7681,24 @@ function showApiResponse(message, type, details = null) {
     
     container.style.display = 'block';
     
-    // Auto-hide after 10 seconds for success messages
-    if (type === 'success') {
+    // Don't auto-hide responses anymore
+}
+
+// Copy text to clipboard with visual feedback
+function copyToClipboard(text, button) {
+    navigator.clipboard.writeText(text).then(() => {
+        const originalText = button.textContent;
+        button.textContent = '✅ Copied!';
+        button.style.background = 'rgba(34, 197, 94, 0.3)';
+        
         setTimeout(() => {
-            if (container) {
-                container.style.display = 'none';
-            }
-        }, 10000);
-    }
+            button.textContent = originalText;
+            button.style.background = '';
+        }, 2000);
+    }).catch(err => {
+        console.error('Failed to copy text: ', err);
+        alert('Failed to copy to clipboard');
+    });
 }
 
 function copyJSONToClipboard(jsonString) {
