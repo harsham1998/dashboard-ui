@@ -6072,7 +6072,7 @@ async function saveProcessedTasksToFirebase() {
                 
                 return {
                     task_name: taskData.TaskName,
-                    task_id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                    task_id: task.taskId || '', // Use extracted task ID from task name or popup
                     assigned_to: taskData.AssignedTo || '',
                     due_date: taskData.TaskDueDate || '',
                     sprint: taskData.SprintID || '',
@@ -6082,7 +6082,7 @@ async function saveProcessedTasksToFirebase() {
                     review_hrs: reviewStatus ? reviewStatus.expectedHours : 0,
                     is_approved: false, // Save as unapproved initially
                     created_at: new Date().toISOString(),
-                    unique_id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+                    unique_id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}` // Keep unique_id for database tracking
                 };
             });
 
@@ -6243,17 +6243,17 @@ async function updateTaskInFirebase(taskIndex) {
             const taskData = generateTaskJSON(taskToUpdate);
             const newTask = {
                 task_name: taskData.TaskName,
-                task_id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                task_id: taskToUpdate.taskId || '', // Use extracted task ID from task name or popup
                 assigned_to: taskData.AssignedTo || '',
-                due_date: taskData.DueDate || '',
-                sprint: taskData.Sprint || '',
+                due_date: taskData.TaskDueDate || '',
+                sprint: taskData.SprintID || '',
                 competency: taskData.CompetencyID || '',
                 coding_hrs: taskData.CodingHours || 0,
                 testing_hrs: taskData.TestingHours || 0,
                 review_hrs: taskData.ReviewHours || 0,
                 is_approved: false,
                 created_at: new Date().toISOString(),
-                unique_id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+                unique_id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}` // Keep unique_id for database tracking
             };
             existingData.tasks.push(newTask);
         } else {
@@ -6265,9 +6265,10 @@ async function updateTaskInFirebase(taskIndex) {
             existingData.tasks[taskIndex_in_firebase] = {
                 ...existingData.tasks[taskIndex_in_firebase], // Keep existing metadata
                 task_name: taskData.TaskName,
+                task_id: taskToUpdate.taskId || existingData.tasks[taskIndex_in_firebase].task_id || '', // Use extracted task ID or keep existing
                 assigned_to: taskData.AssignedTo || '',
-                due_date: taskData.DueDate || '',
-                sprint: taskData.Sprint || '',
+                due_date: taskData.TaskDueDate || '',
+                sprint: taskData.SprintID || '',
                 competency: taskData.CompetencyID || '',
                 coding_hrs: taskData.CodingHours || 0,
                 testing_hrs: taskData.TestingHours || 0,
