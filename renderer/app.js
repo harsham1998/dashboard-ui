@@ -24,12 +24,12 @@ class AuthSystem {
     async loadUserData() {
         try {
             await loadDataFromStorage();
-            
+
             // Ensure appData has the required structure
             if (!appData || typeof appData !== 'object') {
                 appData = getDefaultAppData();
             }
-            
+
             // Ensure all required properties exist
             if (!appData.tasks) appData.tasks = {};
             if (!appData.quickLinks) appData.quickLinks = [];
@@ -37,7 +37,7 @@ class AuthSystem {
             if (!appData.transactions) appData.transactions = [];
             if (!appData.importantFeed) appData.importantFeed = [];
             if (!appData.quickNotes) appData.quickNotes = '';
-            
+
             updateUIFromLoadedData();
         } catch (error) {
             console.error('Error loading user data:', error);
@@ -57,31 +57,31 @@ class AuthSystem {
         document.querySelector('.dashboard-container').style.display = 'block';
         document.getElementById('userInfoBar').style.display = 'flex';
         document.querySelector('.dashboard-container').classList.add('logged-in');
-        
+
         // Initialize Firebase real-time listeners
         initializeFirebaseListeners();
-        
+
         // Initialize card encryption for the current user
         if (this.currentUser && this.currentUser.id) {
             initializeCardEncryption(this.currentUser.id);
         }
-        
+
         // Update user info
         if (this.currentUser) {
             const userNameEl = document.getElementById('userName');
             const userAvatarEl = document.getElementById('userAvatar');
-            
+
             if (userNameEl) userNameEl.textContent = this.currentUser.name;
             if (userAvatarEl) userAvatarEl.textContent = this.currentUser.name.charAt(0).toUpperCase();
-            
+
             // Update profile info
             updateProfileInfo();
-            
+
             // Start email monitoring if Gmail is connected
             if (this.currentUser.gmailTokens) {
                 startEmailMonitoring();
             }
-            
+
             // Check for OAuth callback parameters
             checkOAuthCallback();
         }
@@ -187,7 +187,7 @@ let authSystem;
 async function login() {
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
-    
+
     if (!email || !password) {
         showAuthMessage('Please fill in all fields', 'error');
         return;
@@ -199,7 +199,7 @@ async function login() {
             authSystem.currentUser = user;
             localStorage.setItem('dashboardUser', JSON.stringify(user));
             showAuthMessage('Login successful!', 'success');
-            
+
             setTimeout(async () => {
                 authSystem.showDashboard();
                 // Load user data after login
@@ -218,7 +218,7 @@ async function signup() {
     const email = document.getElementById('signup-email').value;
     const password = document.getElementById('signup-password').value;
     const confirmPassword = document.getElementById('signup-confirm-password').value;
-    
+
     if (!name || !email || !password || !confirmPassword) {
         showAuthMessage('Please fill in all fields', 'error');
         return;
@@ -275,14 +275,14 @@ async function signup() {
 
 function logout() {
     authSystem.currentUser = null;
-    
+
     // Clear all localStorage data
     localStorage.removeItem('dashboardUser');
     localStorage.clear();
-    
+
     // Clean up Firebase real-time listeners
     cleanupFirebaseListeners();
-    
+
     // Reset app data
     appData = {
         tasks: {},
@@ -294,12 +294,12 @@ function logout() {
         ],
         teamMembers: ['Harsha (Me)', 'Ujjawal', 'Arun', 'Sanskar', 'Thombre', 'Sakshi', 'Soumi', 'Ayush', 'Aditya', 'Sankalp']
     };
-    
+
     // Close any open dropdowns
     closeProfileDropdown();
-    
+
     authSystem.showAuthOverlay();
-    
+
     // Clear form fields
     document.getElementById('login-email').value = '';
     document.getElementById('login-password').value = '';
@@ -329,7 +329,7 @@ function showAuthMessage(message, type) {
 function toggleProfileDropdown() {
     const dropdown = document.querySelector('.profile-dropdown');
     const content = document.getElementById('profile-dropdown-content');
-    
+
     if (content.classList.contains('show')) {
         closeProfileDropdown();
     } else {
@@ -340,10 +340,10 @@ function toggleProfileDropdown() {
 function openProfileDropdown() {
     const dropdown = document.querySelector('.profile-dropdown');
     const content = document.getElementById('profile-dropdown-content');
-    
+
     dropdown.classList.add('active');
     content.classList.add('show');
-    
+
     // Close dropdown when clicking outside
     setTimeout(() => {
         document.addEventListener('click', handleOutsideClick);
@@ -353,10 +353,10 @@ function openProfileDropdown() {
 function closeProfileDropdown() {
     const dropdown = document.querySelector('.profile-dropdown');
     const content = document.getElementById('profile-dropdown-content');
-    
+
     dropdown.classList.remove('active');
     content.classList.remove('show');
-    
+
     document.removeEventListener('click', handleOutsideClick);
 }
 
@@ -369,26 +369,26 @@ function handleOutsideClick(event) {
 
 function openProfile() {
     closeProfileDropdown();
-    
+
     if (!authSystem.currentUser) {
         return;
     }
-    
+
     const modal = document.getElementById('profileModal');
     const user = authSystem.currentUser;
-    
+
     // Update profile info
     document.getElementById('profile-avatar-large').textContent = user.name.charAt(0).toUpperCase();
     document.getElementById('profile-display-name').value = user.name;
     document.getElementById('profile-display-email').value = user.email;
-    
+
     // Format dates
     const createdAt = new Date(user.createdAt || Date.now()).toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'long',
         day: 'numeric'
     });
-    
+
     const lastLogin = new Date(user.lastLogin || Date.now()).toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'long',
@@ -396,14 +396,14 @@ function openProfile() {
         hour: '2-digit',
         minute: '2-digit'
     });
-    
+
     document.getElementById('profile-created-at').value = createdAt;
     document.getElementById('profile-last-login').value = lastLogin;
-    
+
     // Load team management interface with existing data
     renderTeamMembers();
     renderTaskStatuses();
-    
+
     modal.style.display = 'block';
 }
 
@@ -415,33 +415,33 @@ function closeProfileModal() {
 function updateProfileInfo() {
     if (authSystem && authSystem.currentUser) {
         const user = authSystem.currentUser;
-        
+
         // Function to update profile elements
         const updateElements = () => {
             const profileNameEl = document.getElementById('profile-name');
             const profileAvatarEl = document.getElementById('profile-avatar');
-            
+
             if (profileNameEl) {
                 profileNameEl.textContent = user.name;
             }
             if (profileAvatarEl) {
                 profileAvatarEl.textContent = user.name.charAt(0).toUpperCase();
             }
-            
+
             // Also update user info bar elements
             const userNameEl = document.getElementById('userName');
             const userAvatarEl = document.getElementById('userAvatar');
-            
+
             if (userNameEl) userNameEl.textContent = user.name;
             if (userAvatarEl) userAvatarEl.textContent = user.name.charAt(0).toUpperCase();
         };
-        
+
         // Try to update immediately
         updateElements();
-        
+
         // Also try again after a short delay in case elements weren't ready
         setTimeout(updateElements, 100);
-        
+
         // Load team management interface
         renderTeamMembers();
         renderTaskStatuses();
@@ -452,25 +452,25 @@ function updateProfileInfo() {
 function renderTeamMembers() {
     const container = document.getElementById('team-members-list');
     if (!container) return;
-    
+
     // Ensure teamMembers exists
     if (!appData || !appData.teamMembers) {
         container.innerHTML = '<div style="text-align: center; color: #64748b; font-size: 12px; padding: 12px;">Loading team members...</div>';
         return;
     }
-    
+
     if (appData.teamMembers.length === 0) {
         container.innerHTML = '<div style="text-align: center; color: #64748b; font-size: 12px; padding: 12px;">No team members added yet</div>';
         return;
     }
-    
+
     container.innerHTML = appData.teamMembers.map((member, index) => `
         <div class="team-member-item">
             <span class="member-name">${member}</span>
             ${member.includes('(Me)') ? '' : `<button class="remove-btn" onclick="removeTeamMember(${index})">Remove</button>`}
         </div>
     `).join('');
-    
+
     // Update filter options whenever team members change
     populateTeamFilter();
 }
@@ -492,18 +492,18 @@ function removeTeamMember(index) {
 function renderTaskStatuses() {
     const container = document.getElementById('task-statuses-list');
     if (!container) return;
-    
+
     // Ensure taskStatuses exists
     if (!appData || !appData.taskStatuses) {
         container.innerHTML = '<div style="text-align: center; color: #64748b; font-size: 12px; padding: 12px;">Loading task statuses...</div>';
         return;
     }
-    
+
     if (appData.taskStatuses.length === 0) {
         container.innerHTML = '<div style="text-align: center; color: #64748b; font-size: 12px; padding: 12px;">No task statuses defined</div>';
         return;
     }
-    
+
     container.innerHTML = appData.taskStatuses.map((status, index) => `
         <div class="status-item">
             <span class="status-name">${status.charAt(0).toUpperCase() + status.slice(1)}</span>
@@ -515,22 +515,22 @@ function renderTaskStatuses() {
 function addTaskStatus() {
     const input = document.getElementById('new-status-name');
     const statusName = input.value.trim().toLowerCase();
-    
+
     if (!statusName) {
         alert('Please enter a status name');
         return;
     }
-    
+
     // Ensure taskStatuses exists
     if (!appData.taskStatuses) {
         appData.taskStatuses = ['pending'];
     }
-    
+
     if (appData.taskStatuses.includes(statusName)) {
         alert('Status already exists');
         return;
     }
-    
+
     appData.taskStatuses.push(statusName);
     input.value = '';
     renderTaskStatuses();
@@ -566,16 +566,16 @@ function updateAllTeamDropdowns() {
 
 function updateAllStatusDropdowns() {
     const taskStatuses = appData.taskStatuses || ['pending'];
-    
+
     // Update task status select in modal
     const taskStatusSelect = document.getElementById('task-status-select');
     if (taskStatusSelect) {
         const currentValue = taskStatusSelect.value;
-        taskStatusSelect.innerHTML = taskStatuses.map(status => 
+        taskStatusSelect.innerHTML = taskStatuses.map(status =>
             `<option value="${status}" ${currentValue === status ? 'selected' : ''}>${status.charAt(0).toUpperCase() + status.slice(1)}</option>`
         ).join('');
     }
-    
+
     // Update filter status dropdown
     const filterStatusSelect = document.getElementById('filter-status');
     if (filterStatusSelect) {
@@ -585,7 +585,7 @@ function updateAllStatusDropdowns() {
             ${taskStatuses.map(status => `<option value="${status}" ${currentValue === status ? 'selected' : ''}>${status.charAt(0).toUpperCase() + status.slice(1)}</option>`).join('')}
         `;
     }
-    
+
     // Force re-render of tasks to update inline dropdowns
     renderTasks(true);
 }
@@ -605,7 +605,7 @@ const GMAIL_CONFIG = {
 function openEmailConnectionModal() {
     const modal = document.getElementById('emailConnectionModal');
     modal.style.display = 'block';
-    
+
     // Load and display connected accounts
     loadConnectedAccounts();
 }
@@ -613,7 +613,7 @@ function openEmailConnectionModal() {
 function closeEmailConnectionModal() {
     const modal = document.getElementById('emailConnectionModal');
     modal.style.display = 'none';
-    
+
     // Clean up Firebase listener
     if (window.connectionsListener) {
         window.connectionsListener.off();
@@ -624,11 +624,11 @@ function closeEmailConnectionModal() {
 function loadConnectedAccounts() {
     const gmailConnections = document.getElementById('gmail-connections');
     const outlookConnections = document.getElementById('outlook-connections');
-    
+
     // Clear existing connections
     gmailConnections.innerHTML = '<div class="loading">Loading connections...</div>';
     outlookConnections.innerHTML = '<div class="loading">Loading connections...</div>';
-    
+
     // Get current user email
     const currentUser = authSystem.currentUser;
     if (!currentUser || !currentUser.email) {
@@ -636,29 +636,29 @@ function loadConnectedAccounts() {
         outlookConnections.innerHTML = '<div class="no-connections">Please login to view connections</div>';
         return;
     }
-    
+
     // Use user ID for Firebase access
     const userId = currentUser.id;
-    
+
     // Access Firebase directly
     const firebaseUrl = 'https://dashboard-app-fcd42-default-rtdb.firebaseio.com';
-    
+
     // Fetch user data from Firebase
     fetch(`${firebaseUrl}/users/${userId}.json`)
         .then(response => response.json())
         .then(userData => {
             console.log('User data from Firebase:', userData);
-            
+
             // Clear loading states
             gmailConnections.innerHTML = '';
             outlookConnections.innerHTML = '';
-            
+
             // Handle Gmail connections
             if (userData && userData.gmailTokens && userData.gmailTokens.connected) {
                 // Check if connection is active (has refresh token for getting new access tokens)
                 const hasRefreshToken = userData.gmailTokens.refresh_token;
                 const isActive = hasRefreshToken && userData.gmailTokens.connected;
-                
+
                 const gmailConnection = createConnectionItem({
                     email: userData.email || currentUser.email,
                     provider: 'gmail',
@@ -668,7 +668,7 @@ function loadConnectedAccounts() {
                     refreshToken: userData.gmailTokens.refresh_token
                 });
                 gmailConnections.appendChild(gmailConnection);
-                
+
                 // Update connect button
                 const connectBtn = document.getElementById('gmail-connect-btn');
                 if (connectBtn) {
@@ -678,7 +678,7 @@ function loadConnectedAccounts() {
                 }
             } else {
                 gmailConnections.innerHTML = '<div class="no-connections">No Gmail accounts connected</div>';
-                
+
                 // Reset connect button
                 const connectBtn = document.getElementById('gmail-connect-btn');
                 if (connectBtn) {
@@ -687,10 +687,10 @@ function loadConnectedAccounts() {
                     connectBtn.disabled = false;
                 }
             }
-            
+
             // Handle Outlook connections (always show as coming soon for now)
             outlookConnections.innerHTML = '<div class="no-connections">Outlook integration coming soon</div>';
-            
+
         })
         .catch(error => {
             console.error('Error loading connections from Firebase:', error);
@@ -702,11 +702,11 @@ function loadConnectedAccounts() {
 function createConnectionItem(connection) {
     const item = document.createElement('div');
     item.className = 'connection-item';
-    
+
     const connectedDate = connection.connectedAt ? new Date(connection.connectedAt).toLocaleDateString() : 'Unknown';
     const statusText = connection.active ? 'Active' : 'Inactive';
     const statusClass = connection.active ? 'connected' : 'disconnected';
-    
+
     item.innerHTML = `
         <div class="connection-info">
             <div class="connection-status ${statusClass}"></div>
@@ -725,7 +725,7 @@ function createConnectionItem(connection) {
             </button>
         </div>
     `;
-    
+
     return item;
 }
 
@@ -735,7 +735,7 @@ function refreshGmailToken(email, refreshToken) {
         alert('No refresh token available. Please reconnect your Gmail account.');
         return;
     }
-    
+
     // Call the API to refresh the token
     fetch('https://dashboard-flask-api.onrender.com/oauth/gmail/refresh', {
         method: 'POST',
@@ -747,49 +747,49 @@ function refreshGmailToken(email, refreshToken) {
             userEmail: email
         })
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.tokens) {
-            console.log('Token refreshed successfully');
-            // Reload the connections to show updated status
-            loadConnectedAccounts();
-        } else {
-            console.error('Failed to refresh token:', data);
-            alert('Failed to refresh token. Please try reconnecting your Gmail account.');
-        }
-    })
-    .catch(error => {
-        console.error('Error refreshing token:', error);
-        alert('Error refreshing token. Please try again.');
-    });
+        .then(response => response.json())
+        .then(data => {
+            if (data.tokens) {
+                console.log('Token refreshed successfully');
+                // Reload the connections to show updated status
+                loadConnectedAccounts();
+            } else {
+                console.error('Failed to refresh token:', data);
+                alert('Failed to refresh token. Please try reconnecting your Gmail account.');
+            }
+        })
+        .catch(error => {
+            console.error('Error refreshing token:', error);
+            alert('Error refreshing token. Please try again.');
+        });
 }
 
 function disconnectGmail(email) {
     if (!confirm('Are you sure you want to disconnect your Gmail account?')) {
         return;
     }
-    
+
     const userId = authSystem.currentUser.id;
     const firebaseUrl = 'https://dashboard-app-fcd42-default-rtdb.firebaseio.com';
-    
+
     // Remove Gmail tokens from Firebase
     fetch(`${firebaseUrl}/users/${userId}/gmailTokens.json`, {
         method: 'DELETE'
     })
-    .then(response => {
-        if (response.ok) {
-            console.log('Gmail account disconnected successfully');
-            // Reload the connections to show updated status
-            loadConnectedAccounts();
-        } else {
-            console.error('Failed to disconnect Gmail account');
-            alert('Failed to disconnect Gmail account. Please try again.');
-        }
-    })
-    .catch(error => {
-        console.error('Error disconnecting Gmail account:', error);
-        alert('Error disconnecting Gmail account. Please try again.');
-    });
+        .then(response => {
+            if (response.ok) {
+                console.log('Gmail account disconnected successfully');
+                // Reload the connections to show updated status
+                loadConnectedAccounts();
+            } else {
+                console.error('Failed to disconnect Gmail account');
+                alert('Failed to disconnect Gmail account. Please try again.');
+            }
+        })
+        .catch(error => {
+            console.error('Error disconnecting Gmail account:', error);
+            alert('Error disconnecting Gmail account. Please try again.');
+        });
 }
 
 function refreshConnection(provider) {
@@ -812,14 +812,14 @@ function disconnectGmail() {
     // Remove Gmail tokens from user data
     if (authSystem.currentUser) {
         delete authSystem.currentUser.gmailTokens;
-        
+
         // Update Firebase
         const userId = authSystem.currentUser.id;
         fetch(`${FIREBASE_URL}/users/${userId}.json`)
             .then(response => response.json())
             .then(userData => {
                 delete userData.gmailTokens;
-                
+
                 return fetch(`${FIREBASE_URL}/users/${userId}.json`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
@@ -829,13 +829,13 @@ function disconnectGmail() {
             .then(() => {
                 // Update localStorage
                 localStorage.setItem('dashboardUser', JSON.stringify(authSystem.currentUser));
-                
+
                 // Stop email monitoring
                 stopEmailMonitoring();
-                
+
                 // Refresh the modal
                 loadConnectedAccounts();
-                
+
                 showNotification('Gmail disconnected successfully');
             })
             .catch(error => {
@@ -851,13 +851,13 @@ function connectGmail() {
         showNotification('Gmail is already connected!');
         return;
     }
-    
+
     // Generate OAuth URL
     const authUrl = generateGmailAuthUrl();
-    
+
     // Open OAuth window
     const authWindow = window.open(authUrl, 'gmail-auth', 'width=500,height=600,scrollbars=yes,resizable=yes');
-    
+
     // Listen for auth completion
     const authInterval = setInterval(() => {
         try {
@@ -880,28 +880,28 @@ function connectOutlook() {
 async function refreshUserDataFromFirebase() {
     try {
         if (!authSystem.currentUser) return;
-        
+
         const userId = authSystem.currentUser.id;
         const response = await fetch(`${FIREBASE_URL}/users/${userId}.json`);
-        
+
         if (response.ok) {
             const userData = await response.json();
-            
+
             if (userData) {
                 // Update current user with fresh data from Firebase
                 authSystem.currentUser = {
                     ...authSystem.currentUser,
                     ...userData
                 };
-                
+
                 // Update localStorage
                 localStorage.setItem('dashboardUser', JSON.stringify(authSystem.currentUser));
-                
+
                 // Check if Gmail was just connected
                 if (userData.gmailTokens && userData.gmailTokens.connected) {
                     showNotification('Gmail connected successfully!');
                     startEmailMonitoring();
-                    
+
                     // Refresh the modal if it's open
                     const modal = document.getElementById('emailConnectionModal');
                     if (modal.style.display === 'block') {
@@ -925,7 +925,7 @@ function generateGmailAuthUrl() {
         prompt: GMAIL_CONFIG.prompt,
         state: authSystem.currentUser.email // Pass user email as state
     });
-    
+
     return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 }
 
@@ -936,20 +936,20 @@ function checkOAuthCallback() {
     const urlParams = new URLSearchParams(window.location.search);
     const authSuccess = urlParams.get('auth_success');
     const authError = urlParams.get('auth_error');
-    
+
     if (authSuccess === 'gmail_connected') {
         // Gmail was connected successfully
         // Refresh user data from Firebase to get new tokens
         setTimeout(() => {
             refreshUserDataFromFirebase();
         }, 1000);
-        
+
         // Clean up URL
         window.history.replaceState({}, document.title, window.location.pathname);
     } else if (authError) {
         // Authentication failed
         let errorMessage = 'Gmail authentication failed';
-        
+
         switch (authError) {
             case 'access_denied':
                 errorMessage = 'Gmail access was denied';
@@ -964,9 +964,9 @@ function checkOAuthCallback() {
                 errorMessage = 'OAuth callback failed';
                 break;
         }
-        
+
         showNotification(errorMessage);
-        
+
         // Clean up URL
         window.history.replaceState({}, document.title, window.location.pathname);
     }
@@ -986,19 +986,19 @@ async function exchangeGmailCode(authCode) {
                 userEmail: authSystem.currentUser.email
             })
         });
-        
+
         const result = await response.json();
-        
+
         if (!response.ok || result.error) {
             throw new Error(result.error || 'Token exchange failed');
         }
-        
+
         // Store tokens in user data
         await storeGmailTokens(result.tokens);
-        
+
         // Start email monitoring
         startEmailMonitoring();
-        
+
         return result.tokens;
     } catch (error) {
         console.error('Error exchanging Gmail code:', error);
@@ -1010,11 +1010,11 @@ async function storeGmailTokens(tokens) {
     try {
         // Get current user data
         const userEmail = authSystem.currentUser.email.replace(/[.#$[\]]/g, '_');
-        
+
         // Get user from Firebase
         const response = await fetch(`${FIREBASE_URL}/users/${userEmail}.json`);
         const userData = await response.json();
-        
+
         // Add Gmail tokens
         userData.gmailTokens = {
             access_token: tokens.access_token,
@@ -1024,20 +1024,20 @@ async function storeGmailTokens(tokens) {
             scope: tokens.scope,
             created_at: new Date().toISOString()
         };
-        
+
         // Save back to Firebase
         await fetch(`${FIREBASE_URL}/users/${userId}.json`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(userData)
         });
-        
+
         // Update current user
         authSystem.currentUser.gmailTokens = userData.gmailTokens;
-        
+
         // Update local storage
         localStorage.setItem('dashboardUser', JSON.stringify(authSystem.currentUser));
-        
+
         alert('Gmail connected successfully!');
     } catch (error) {
         console.error('Error storing Gmail tokens:', error);
@@ -1048,11 +1048,11 @@ async function storeGmailTokens(tokens) {
 async function refreshGmailToken() {
     try {
         const gmailTokens = authSystem.currentUser.gmailTokens;
-        
+
         if (!gmailTokens || !gmailTokens.refresh_token) {
             throw new Error('No refresh token available');
         }
-        
+
         // Use your API to refresh the token
         const response = await fetch('https://dashboard-flask-api.onrender.com/oauth/gmail/refresh', {
             method: 'POST',
@@ -1064,13 +1064,13 @@ async function refreshGmailToken() {
                 userEmail: authSystem.currentUser.email
             })
         });
-        
+
         const result = await response.json();
-        
+
         if (!response.ok || result.error) {
             throw new Error(result.error || 'Token refresh failed');
         }
-        
+
         // Update tokens (preserve refresh_token if not provided)
         const updatedTokens = {
             ...gmailTokens,
@@ -1080,14 +1080,14 @@ async function refreshGmailToken() {
             scope: result.tokens.scope,
             created_at: new Date().toISOString()
         };
-        
+
         if (result.tokens.refresh_token) {
             updatedTokens.refresh_token = result.tokens.refresh_token;
         }
-        
+
         // Store updated tokens
         await storeGmailTokens(updatedTokens);
-        
+
         return updatedTokens;
     } catch (error) {
         console.error('Error refreshing Gmail token:', error);
@@ -1101,14 +1101,14 @@ async function makeGmailApiCall(endpoint, method = 'GET', body = null) {
         if (!authSystem.currentUser || !authSystem.currentUser.gmailTokens) {
             throw new Error('No Gmail access token available');
         }
-        
+
         const requestBody = {
             userEmail: authSystem.currentUser.email,
             endpoint: endpoint,
             method: method,
             ...body
         };
-        
+
         const response = await fetch('https://dashboard-flask-api.onrender.com/gmail/api', {
             method: 'POST',
             headers: {
@@ -1116,21 +1116,21 @@ async function makeGmailApiCall(endpoint, method = 'GET', body = null) {
             },
             body: JSON.stringify(requestBody)
         });
-        
+
         const result = await response.json();
-        
+
         if (!response.ok || result.error) {
             if (response.status === 401 || result.error === 'Token expired') {
                 // Token expired, try to refresh
                 await refreshGmailToken();
-                
+
                 // Retry the request
                 return await makeGmailApiCall(endpoint, method, body);
             }
-            
+
             throw new Error(result.error || 'Gmail API call failed');
         }
-        
+
         return result.data;
     } catch (error) {
         console.error('Gmail API call failed:', error);
@@ -1141,12 +1141,12 @@ async function makeGmailApiCall(endpoint, method = 'GET', body = null) {
 async function searchGmailEmails(query = '', maxResults = 50) {
     try {
         const searchQuery = query || 'transaction OR payment OR purchase OR charge OR debit OR receipt OR invoice OR bank OR card';
-        
+
         const response = await makeGmailApiCall('/users/me/messages', 'GET', {
             q: searchQuery,
             maxResults: maxResults
         });
-        
+
         return response.messages || [];
     } catch (error) {
         console.error('Error searching Gmail emails:', error);
@@ -1172,7 +1172,7 @@ async function getGmailTransactions(lastCheck = null) {
         if (!authSystem.currentUser || !authSystem.currentUser.gmailTokens) {
             throw new Error('No Gmail access token available');
         }
-        
+
         const response = await fetch('https://dashboard-flask-api.onrender.com/gmail/transactions', {
             method: 'POST',
             headers: {
@@ -1183,13 +1183,13 @@ async function getGmailTransactions(lastCheck = null) {
                 lastCheck: lastCheck
             })
         });
-        
+
         const result = await response.json();
-        
+
         if (!response.ok || result.error) {
             throw new Error(result.error || 'Failed to get Gmail transactions');
         }
-        
+
         return result.transactions || [];
     } catch (error) {
         console.error('Error getting Gmail transactions:', error);
@@ -1201,12 +1201,12 @@ async function extractTransactionFromEmail(email) {
     try {
         const payload = email.payload;
         const headers = payload.headers;
-        
+
         // Get basic email info
         const subject = headers.find(h => h.name === 'Subject')?.value || '';
         const from = headers.find(h => h.name === 'From')?.value || '';
         const date = headers.find(h => h.name === 'Date')?.value || '';
-        
+
         // Get email body
         let body = '';
         if (payload.parts) {
@@ -1222,17 +1222,17 @@ async function extractTransactionFromEmail(email) {
             // Single-part email
             body = atob(payload.body.data.replace(/-/g, '+').replace(/_/g, '/'));
         }
-        
+
         // Extract transaction data using regex patterns
         const transaction = extractTransactionData(subject, body, from, date);
-        
+
         if (transaction) {
             transaction.emailId = email.id;
             transaction.emailSubject = subject;
             transaction.emailFrom = from;
             transaction.emailDate = date;
         }
-        
+
         return transaction;
     } catch (error) {
         console.error('Error extracting transaction from email:', error);
@@ -1242,7 +1242,7 @@ async function extractTransactionFromEmail(email) {
 
 function extractTransactionData(subject, body, from, date) {
     const text = `${subject} ${body}`.toLowerCase();
-    
+
     // Amount patterns
     const amountPatterns = [
         /\$([0-9,]+\.\d{2})/g,
@@ -1252,7 +1252,7 @@ function extractTransactionData(subject, body, from, date) {
         /charged?\s*\$?([0-9,]+\.?\d{0,2})/g,
         /paid?\s*\$?([0-9,]+\.?\d{0,2})/g
     ];
-    
+
     // Find amount
     let amount = null;
     for (const pattern of amountPatterns) {
@@ -1265,16 +1265,16 @@ function extractTransactionData(subject, body, from, date) {
             }
         }
     }
-    
+
     if (!amount) return null;
-    
+
     // Merchant patterns
     const merchantPatterns = [
         /(?:at|from|to)\s+([a-zA-Z0-9\s&.-]+?)\s+(?:on|for|was|has)/g,
         /merchant:?\s*([a-zA-Z0-9\s&.-]+)/g,
         /purchase\s+(?:at|from)\s+([a-zA-Z0-9\s&.-]+)/g
     ];
-    
+
     let merchant = 'Unknown';
     for (const pattern of merchantPatterns) {
         const matches = text.match(pattern);
@@ -1283,19 +1283,19 @@ function extractTransactionData(subject, body, from, date) {
             break;
         }
     }
-    
+
     // Determine transaction type
     const isCredit = /(?:received|refund|deposit|credit|cashback)/i.test(text);
     const type = isCredit ? 'credit' : 'debit';
-    
+
     // Extract card info
     const cardPattern = /\*{4}(\d{4})|ending\s+in\s+(\d{4})|card\s+ending\s+(\d{4})/i;
     const cardMatch = text.match(cardPattern);
     const account = cardMatch ? `****${cardMatch[1] || cardMatch[2] || cardMatch[3]}` : 'Unknown';
-    
+
     // Parse date
     const transactionDate = date ? new Date(date).toISOString() : new Date().toISOString();
-    
+
     return {
         id: `gmail_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         amount: amount,
@@ -1322,15 +1322,15 @@ function categorizeTransaction(merchant, text) {
         'healthcare': ['pharmacy', 'doctor', 'hospital', 'medical', 'health'],
         'transport': ['uber', 'lyft', 'taxi', 'bus', 'train', 'transport']
     };
-    
+
     const combinedText = `${merchant} ${text}`.toLowerCase();
-    
+
     for (const [category, keywords] of Object.entries(categories)) {
         if (keywords.some(keyword => combinedText.includes(keyword))) {
             return category;
         }
     }
-    
+
     return 'other';
 }
 
@@ -1341,10 +1341,10 @@ function startEmailMonitoring() {
     if (emailMonitoringInterval) {
         clearInterval(emailMonitoringInterval);
     }
-    
+
     // Check emails immediately
     checkNewEmails();
-    
+
     // Set up interval to check every 5 minutes
     emailMonitoringInterval = setInterval(checkNewEmails, 5 * 60 * 1000);
 }
@@ -1361,52 +1361,52 @@ async function checkNewEmails() {
         if (!authSystem.currentUser || !authSystem.currentUser.gmailTokens) {
             return;
         }
-        
+
         // Get the last check timestamp
         const lastCheck = authSystem.currentUser.lastEmailCheck || null;
-        
+
         // Use your API to get processed transactions
         const newTransactions = await getGmailTransactions(lastCheck);
-        
+
         if (!newTransactions.length) {
             return;
         }
-        
+
         // Filter out transactions we already have
         const filteredTransactions = newTransactions.filter(transaction => {
             return !appData.transactions.find(t => t.emailId === transaction.emailId);
         });
-        
+
         // Add new transactions to app data
         if (filteredTransactions.length > 0) {
             appData.transactions = [...filteredTransactions, ...appData.transactions];
             await saveDataToStorage();
-            
+
             // Update UI
             renderTransactions();
-            
+
             // Show notification
             showNotification(`Found ${filteredTransactions.length} new transaction(s) from Gmail`);
         }
-        
+
         // Update last check timestamp
         authSystem.currentUser.lastEmailCheck = new Date().toISOString();
-        
+
         // Update user data in Firebase
         const userId = authSystem.currentUser.id;
         const response = await fetch(`${FIREBASE_URL}/users/${userId}.json`);
         const userData = await response.json();
         userData.lastEmailCheck = authSystem.currentUser.lastEmailCheck;
-        
+
         await fetch(`${FIREBASE_URL}/users/${userId}.json`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(userData)
         });
-        
+
         // Update localStorage
         localStorage.setItem('dashboardUser', JSON.stringify(authSystem.currentUser));
-        
+
     } catch (error) {
         console.error('Error checking new emails:', error);
     }
@@ -1417,15 +1417,15 @@ function showNotification(message, type = 'success') {
     const notification = document.createElement('div');
     notification.className = 'email-notification';
     notification.textContent = message;
-    
+
     // Define colors for different types
     const colors = {
         success: '#10b981',
-        warning: '#f59e0b', 
+        warning: '#f59e0b',
         error: '#ef4444',
         info: '#3b82f6'
     };
-    
+
     notification.style.cssText = `
         position: fixed;
         top: 40px;
@@ -1439,9 +1439,9 @@ function showNotification(message, type = 'success') {
         font-size: 14px;
         font-weight: 500;
     `;
-    
+
     document.body.appendChild(notification);
-    
+
     // Remove after 5 seconds
     setTimeout(() => {
         notification.remove();
@@ -1503,7 +1503,7 @@ const specialEvents = {
 function getStatusConfig() {
     const defaultColors = ['#64748b', '#3b82f6', '#a855f7', '#fbbf24', '#f97316', '#22c55e', '#ef4444', '#06b6d4', '#84cc16', '#f59e0b'];
     const config = {};
-    
+
     if (appData.taskStatuses) {
         appData.taskStatuses.forEach((status, index) => {
             config[status] = {
@@ -1512,58 +1512,58 @@ function getStatusConfig() {
             };
         });
     }
-    
+
     return config;
 }
 
 // Initialize
-document.addEventListener('DOMContentLoaded', async function() {
-    
+document.addEventListener('DOMContentLoaded', async function () {
+
     // Set default motivational message first
     document.getElementById('motivation').textContent = '"Today is your opportunity to build the tomorrow you want."';
-    
+
     updateClocks();
     updateDate();
-    
+
     // Initialize weather display immediately
     updateWeatherDisplay();
-    
+
     // Try to update motivational message, fallback to default if error
     try {
         updateMotivationalMessage();
     } catch (error) {
     }
-    
+
     // Initialize authentication system
     authSystem = new AuthSystem();
-    
+
     // Wait for authentication to complete before checking user
     // The init() method in AuthSystem handles user loading and UI updates
-    
+
     // Ensure profile info is updated after DOM is ready
     if (authSystem && authSystem.currentUser) {
         setTimeout(() => {
             updateProfileInfo();
         }, 200);
     }
-    
+
     initializeFilterModal();
     initializeClipboardPaste();
     fetchWeather();
-    
+
     // Restore timers now that flickering is fixed
     setInterval(updateClocks, 1000);
-    setInterval(function() {
+    setInterval(function () {
         try {
             updateMotivationalMessage();
         } catch (error) {
         }
     }, 60 * 60 * 1000);
     setInterval(fetchWeather, 30 * 60 * 1000);
-    
+
     // Initialize Firebase real-time listeners instead of polling
     initializeFirebaseListeners();
-    
+
     // Add additional event listeners for quick notes
     const quickNotesElement = document.getElementById('quick-notes');
     if (quickNotesElement) {
@@ -1571,10 +1571,10 @@ document.addEventListener('DOMContentLoaded', async function() {
         quickNotesElement.addEventListener('paste', (event) => {
             handleQuickNotesPaste(event);
         });
-        
+
         // Add input event listener as backup
         quickNotesElement.addEventListener('input', (event) => {
-            
+
             // Check if this is a paste operation
             if (event.inputType === 'insertFromPaste' || event.inputType === 'insertCompositionText') {
                 handleQuickNotesPaste(event);
@@ -1582,12 +1582,12 @@ document.addEventListener('DOMContentLoaded', async function() {
                 saveNotes();
             }
         });
-        
+
         // Add change event listener for additional safety
         quickNotesElement.addEventListener('change', (event) => {
             saveNotes();
         });
-        
+
         // Add MutationObserver to detect value changes
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
@@ -1596,21 +1596,21 @@ document.addEventListener('DOMContentLoaded', async function() {
                 }
             });
         });
-        
+
         observer.observe(quickNotesElement, {
             childList: true,
             characterData: true,
             subtree: true
         });
-        
+
     }
-    
+
 });
 
 // Clock and time functions
 function updateClocks() {
     const now = new Date();
-    
+
     // Indian Time
     const indianTime = now.toLocaleTimeString('en-US', {
         timeZone: 'Asia/Kolkata',
@@ -1620,7 +1620,7 @@ function updateClocks() {
         second: '2-digit'
     });
     document.getElementById('indian-clock').textContent = indianTime;
-    
+
     // US Central Time
     const usTime = now.toLocaleTimeString('en-US', {
         timeZone: 'America/Chicago',
@@ -1669,7 +1669,7 @@ function updateDate() {
         day: 'numeric'
     });
     document.getElementById('current-date').textContent = todayString;
-    
+
     // Show todo view date in todo section
     const todoDateString = todoViewDate.toLocaleDateString('en-US', {
         weekday: 'long',
@@ -1678,14 +1678,14 @@ function updateDate() {
         day: 'numeric'
     });
     document.getElementById('todo-date').textContent = todoDateString;
-    
+
     // Check for special events on the current date (not todo date)
     const today = new Date();
     const month = String(today.getMonth() + 1).padStart(2, '0');
     const day = String(today.getDate()).padStart(2, '0');
     const monthDay = `${month}-${day}`;
     const specialEvent = specialEvents[monthDay];
-    
+
     const specialEventEl = document.getElementById('special-event');
     if (specialEvent) {
         specialEventEl.textContent = specialEvent;
@@ -1702,30 +1702,30 @@ async function fetchWeather() {
         // For real weather data, get a free API key from https://openweathermap.org/api
         // Replace 'your_api_key_here' with your actual API key
         // const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=Hyderabad,IN&appid=your_api_key_here&units=metric`);
-        
+
         // For demo purposes, using simulated weather data
         // Uncomment the above line and comment out the throw statement below to use real API
         throw new Error('Using demo weather data - add your API key for real weather');
-        
+
         const data = await response.json();
-        
+
         weatherData = {
             temp: Math.round(data.main.temp) + '°C',
-            condition: data.weather[0].description.split(' ').map(word => 
+            condition: data.weather[0].description.split(' ').map(word =>
                 word.charAt(0).toUpperCase() + word.slice(1)
             ).join(' '),
             icon: getWeatherIcon(data.weather[0].main),
             location: data.name + ', ' + data.sys.country
         };
-        
+
     } catch (error) {
         // Demo weather data for Hyderabad
         const hour = new Date().getHours();
         const month = new Date().getMonth();
-        
+
         // Simulate weather based on time and season for Hyderabad
         let temp, condition, icon;
-        
+
         if (month >= 3 && month <= 6) { // Summer (Apr-Jun)
             temp = Math.round(35 + Math.random() * 8); // 35-43°C
             condition = hour >= 6 && hour < 18 ? 'Hot & Sunny' : 'Clear Night';
@@ -1739,7 +1739,7 @@ async function fetchWeather() {
             condition = hour >= 6 && hour < 18 ? 'Pleasant' : 'Cool Night';
             icon = hour >= 6 && hour < 18 ? '🌤️' : '🌙';
         }
-        
+
         weatherData = {
             temp: temp + '°C',
             condition: condition,
@@ -1747,7 +1747,7 @@ async function fetchWeather() {
             location: 'Hyderabad, IN'
         };
     }
-    
+
     updateWeatherDisplay();
 }
 
@@ -1771,7 +1771,7 @@ function updateWeatherDisplay() {
     const temperature = document.getElementById('temperature');
     const condition = document.getElementById('condition');
     const weatherLocation = document.getElementById('weather-location');
-    
+
     if (weatherIcon) weatherIcon.textContent = weatherData.icon;
     if (temperature) temperature.textContent = weatherData.temp;
     if (condition) condition.textContent = weatherData.condition;
@@ -1783,7 +1783,7 @@ function saveNotes() {
     const quickNotesElement = document.getElementById('quick-notes');
     if (quickNotesElement) {
         appData.quickNotes = quickNotesElement.value;
-        
+
         clearTimeout(saveTimeout);
         saveTimeout = setTimeout(async () => {
             await saveDataToStorage();
@@ -1793,17 +1793,17 @@ function saveNotes() {
 
 // Handle paste events for quick notes
 function handleQuickNotesPaste(event) {
-    
+
     // Set flag to prevent refresh interference
     isPasting = true;
-    
+
     // Try multiple approaches to ensure paste is saved
     const saveAfterPaste = () => {
         const quickNotesElement = document.getElementById('quick-notes');
         if (quickNotesElement) {
             const newValue = quickNotesElement.value;
             appData.quickNotes = newValue;
-            
+
             // Save immediately without waiting for the timeout
             clearTimeout(saveTimeout);
             saveDataToStorage().then(() => {
@@ -1811,7 +1811,7 @@ function handleQuickNotesPaste(event) {
             });
         }
     };
-    
+
     // Try multiple timeouts to catch the paste
     setTimeout(saveAfterPaste, 10);
     setTimeout(saveAfterPaste, 50);
@@ -1822,7 +1822,7 @@ function handleQuickNotesPaste(event) {
 function showSaveStatus(status) {
     const statusEl = document.getElementById('save-status');
     statusEl.className = 'auto-save ' + status;
-    
+
     if (status === 'saving') {
         statusEl.textContent = 'Saving to file...';
     } else if (status === 'saved') {
@@ -1900,7 +1900,7 @@ function cleanupAppData() {
     if (!appData.importantFeed) appData.importantFeed = [];
     if (!appData.teamMembers) appData.teamMembers = [];
     if (!appData.taskStatuses) appData.taskStatuses = ['pending', 'programming', 'discussion', 'pretest', 'test', 'live'];
-    
+
     // Ensure current user is in team members if not already
     if (authSystem && authSystem.currentUser && authSystem.currentUser.name) {
         const userEntry = `${authSystem.currentUser.name} (Me)`;
@@ -1908,21 +1908,21 @@ function cleanupAppData() {
             appData.teamMembers.unshift(userEntry);
         }
     }
-    
+
     // Remove placeholder from tasks
     if (appData.tasks._placeholder) {
         delete appData.tasks._placeholder;
     }
-    
+
     // Remove placeholders from arrays
     if (Array.isArray(appData.importantFeed)) {
         appData.importantFeed = appData.importantFeed.filter(item => !item._placeholder);
     }
-    
+
     if (Array.isArray(appData.creditCards)) {
         appData.creditCards = appData.creditCards.filter(item => !item._placeholder);
     }
-    
+
     if (Array.isArray(appData.transactions)) {
         appData.transactions = appData.transactions.filter(item => !item._placeholder);
     }
@@ -1967,27 +1967,27 @@ function initializeFirebaseListeners() {
         console.log('No authenticated user - skipping Firebase polling');
         return;
     }
-    
+
     const userFile = authSystem.getUserFilePath();
-    
+
     // If we already have monitoring for this user, don't create another
     if (firebaseListener && currentUserFile === userFile) {
         return;
     }
-    
+
     // Clean up existing monitoring
     cleanupFirebaseListeners();
-    
+
     console.log('Setting up Firebase polling for:', userFile);
     currentUserFile = userFile;
-    
+
     // Function to refresh data
     async function refreshData() {
         try {
             if (!authSystem || !authSystem.currentUser) {
                 return;
             }
-            
+
             const response = await fetch(`${FIREBASE_URL}/${userFile}`);
             if (response.ok) {
                 const firebaseData = await response.json();
@@ -1999,13 +1999,13 @@ function initializeFirebaseListeners() {
                         quickNotesElement.matches(':focus')
                     );
                     const currentQuickNotes = (isTypingNotes || isPasting) ? appData.quickNotes : null;
-                    
+
                     appData = firebaseData;
-                    
+
                     if ((isTypingNotes || isPasting) && currentQuickNotes !== null) {
                         appData.quickNotes = currentQuickNotes;
                     }
-                    
+
                     renderTasks();
                     updateAllDisplays();
                 }
@@ -2014,13 +2014,13 @@ function initializeFirebaseListeners() {
             console.error('Error refreshing data:', error);
         }
     }
-    
+
     // Load data immediately
     refreshData();
-    
+
     // Poll every 5 seconds
     firebaseListener = setInterval(refreshData, 30000);
-    
+
     console.log('🚀 Firebase polling initialized - checking every 5 seconds');
 }
 
@@ -2031,7 +2031,7 @@ function cleanupFirebaseListeners() {
         clearInterval(firebaseListener);
         firebaseListener = null;
     }
-    
+
     currentUserFile = null;
 }
 
@@ -2045,7 +2045,7 @@ function updateAllDisplays() {
             notesElement.value = appData.quickNotes;
         }
     }
-    
+
     // Re-render all sections
     renderTasks();
     renderQuickLinks();
@@ -2058,11 +2058,11 @@ async function loadDataFromStorage() {
         if (!authSystem || !authSystem.currentUser) {
             return;
         }
-        
+
         // Load data from Firebase API instead of local JSON
         const userFile = authSystem.getUserFilePath();
         const response = await fetch(`${FIREBASE_URL}/${userFile}`);
-        
+
         if (response.ok) {
             const data = await response.json();
             if (data) {
@@ -2071,15 +2071,15 @@ async function loadDataFromStorage() {
                     ...getDefaultAppData(),
                     ...data
                 };
-                
+
                 // Clean up placeholders and ensure proper structure
                 cleanupAppData();
-                
+
                 // If the loaded data was missing critical properties, save the updated structure
                 if (!data.tasks || !data.quickLinks) {
                     await saveDataToStorage();
                 }
-                
+
                 updateUIFromLoadedData();
             } else {
                 appData = getDefaultAppData();
@@ -2101,7 +2101,7 @@ async function loadDataFromStorage() {
 }
 
 function updateUIFromLoadedData() {
-    
+
     // Update quick notes only if user is not typing or pasting
     const quickNotesElement = document.getElementById('quick-notes');
     if (quickNotesElement) {
@@ -2112,15 +2112,15 @@ function updateUIFromLoadedData() {
         } else {
         }
     }
-    
+
     renderQuickLinks();
-    
+
     renderTransactions();
-    
+
     renderTasks();
-    
+
     renderImportantFeed();
-    
+
 }
 
 // Task functions
@@ -2129,17 +2129,17 @@ function getDateKey(date) {
 }
 
 function addTask() {
-    
+
     const input = document.getElementById('new-task-input');
     const taskText = input.value.trim();
-    
+
     if (taskText) {
         const dateKey = getDateKey(todoViewDate);
-        
+
         // Ensure appData.tasks exists
         if (!appData.tasks) appData.tasks = {};
         if (!appData.tasks[dateKey]) appData.tasks[dateKey] = [];
-        
+
         const newTask = {
             id: Date.now(),
             text: taskText,
@@ -2151,12 +2151,12 @@ function addTask() {
             appreciation: [],
             createdAt: new Date().toISOString()
         };
-        
+
         appData.tasks[dateKey].push(newTask);
-        
+
         input.value = '';
-        
-        
+
+
         renderTasks();
         saveDataToStorage();
     }
@@ -2171,19 +2171,19 @@ function toggleTask(dateKey, taskId, checkboxElement = null) {
                 const pendingSubtasks = task.subtasks.filter(s => !s.completed);
                 if (pendingSubtasks.length > 0) {
                     alert(`Cannot complete this task yet. Please complete all ${pendingSubtasks.length} pending subtasks first.`);
-                    
+
                     // Uncheck the checkbox directly if element is provided
                     if (checkboxElement) {
                         checkboxElement.checked = false;
                     }
-                    
+
                     return;
                 }
             }
-            
+
             // Toggle the task completion status
             task.completed = !task.completed;
-            
+
             // Add completion timestamp when task is completed
             if (task.completed) {
                 task.completedAt = new Date().toISOString();
@@ -2191,7 +2191,7 @@ function toggleTask(dateKey, taskId, checkboxElement = null) {
                 // Remove completion timestamp if task is uncompleted
                 delete task.completedAt;
             }
-            
+
             renderTasks();
             saveDataToStorage();
         }
@@ -2215,7 +2215,7 @@ function deleteTask(dateKey, taskId) {
 function toggleAssigneeDropdown(dateKey, taskId, buttonElement) {
     const dropdownId = `assign-dropdown-${dateKey}-${taskId}`;
     const dropdown = document.getElementById(dropdownId);
-    
+
     // Close all other dropdowns first and remove their open classes
     document.querySelectorAll('.assign-dropdown').forEach(dd => {
         if (dd.id !== dropdownId) {
@@ -2230,7 +2230,7 @@ function toggleAssigneeDropdown(dateKey, taskId, buttonElement) {
             }
         }
     });
-    
+
     // Toggle current dropdown
     if (dropdown) {
         const container = dropdown.closest('.task-assign-multi');
@@ -2278,7 +2278,7 @@ function handleAssigneeCheckbox(checkbox) {
     const dateKey = checkbox.dataset.dateKey;
     const taskId = parseInt(checkbox.dataset.taskId);
     const isChecked = checkbox.checked;
-    
+
     updateTaskAssignees(dateKey, taskId, member, isChecked);
 }
 
@@ -2292,7 +2292,7 @@ function updateTaskAssignees(dateKey, taskId, member, isChecked) {
                 task.assignees = task.assignee ? [task.assignee] : [];
                 delete task.assignee; // Remove old property
             }
-            
+
             if (isChecked) {
                 // Add member if not already in array
                 if (!task.assignees.includes(member)) {
@@ -2302,7 +2302,7 @@ function updateTaskAssignees(dateKey, taskId, member, isChecked) {
                 // Remove member from array
                 task.assignees = task.assignees.filter(m => m !== member);
             }
-            
+
             renderTasks();
             saveDataToStorage();
         }
@@ -2341,17 +2341,17 @@ function openTaskNote(dateKey, taskId) {
             currentTaskForNote = { dateKey, taskId };
             document.getElementById('task-title-input').value = task.text;
             document.getElementById('task-note-content').value = task.note || '';
-            
+
             // Populate status dropdown with dynamic options
             const statusSelect = document.getElementById('task-status-select');
             const currentStatus = task.status || 'pending';
-            statusSelect.innerHTML = (appData.taskStatuses || ['pending']).map(status => 
+            statusSelect.innerHTML = (appData.taskStatuses || ['pending']).map(status =>
                 `<option value="${status}" ${status === currentStatus ? 'selected' : ''}>${status.charAt(0).toUpperCase() + status.slice(1)}</option>`
             ).join('');
-            
+
             // Populate issues, subtasks, and appreciation
             renderModalFeedback(task);
-            
+
             document.getElementById('taskNoteModal').style.display = 'block';
         } else {
         }
@@ -2368,7 +2368,7 @@ function renderModalFeedback(task) {
             <button class="feedback-remove" onclick="removeIssue(${index})">×</button>
         </div>
     `).join('');
-    
+
     // Render subtasks
     const subtasksList = document.getElementById('subtasks-list');
     const subtasks = task.subtasks || [];
@@ -2380,15 +2380,15 @@ function renderModalFeedback(task) {
             <button class="feedback-remove" onclick="removeSubtask(${index})">×</button>
         </div>
     `).join('');
-    
+
     // Update subtask count
     const pendingCount = subtasks.filter(s => !s.completed).length;
     const completedCount = subtasks.filter(s => s.completed).length;
     document.getElementById('subtask-count').textContent = `(${pendingCount} pending, ${completedCount} completed)`;
-    
+
     // Render attachments
     renderAttachments(task);
-    
+
     // Render appreciation
     const appreciationList = document.getElementById('appreciation-list');
     appreciationList.innerHTML = (task.appreciation || []).map((appreciation, index) => `
@@ -2510,9 +2510,9 @@ function renderAttachments(task) {
     const dropzone = document.getElementById('attachment-dropzone');
     const addBtn = document.getElementById('attachment-add-btn');
     const container = document.getElementById('attachments-container');
-    
+
     const attachments = task.attachments || [];
-    
+
     if (attachments.length === 0) {
         attachmentsList.innerHTML = '';
         attachmentCount.textContent = '(0 files)';
@@ -2521,12 +2521,12 @@ function renderAttachments(task) {
         container.classList.remove('has-files');
         return;
     }
-    
+
     // Show + button and hide dropzone when there are attachments
     dropzone.style.display = 'none';
     addBtn.style.display = 'inline-flex';
     container.classList.add('has-files');
-    
+
     attachmentsList.innerHTML = attachments.map((attachment, index) => `
         <div class="attachment-item">
             <div class="attachment-icon">${getFileIcon(attachment.name)}</div>
@@ -2545,7 +2545,7 @@ function renderAttachments(task) {
             </div>
         </div>
     `).join('');
-    
+
     attachmentCount.textContent = `(${attachments.length} file${attachments.length > 1 ? 's' : ''})`;
 }
 
@@ -2613,7 +2613,7 @@ function handleFileDrop(event) {
     event.preventDefault();
     event.stopPropagation();
     document.getElementById('attachments-container').classList.remove('drag-over');
-    
+
     const files = Array.from(event.dataTransfer.files);
     if (files.length > 0) {
         processFiles(files);
@@ -2630,18 +2630,18 @@ function handleFileSelect(event) {
 
 async function processFiles(files) {
     if (!currentTaskForNote) return;
-    
+
     const { dateKey, taskId } = currentTaskForNote;
     const task = appData.tasks[dateKey].find(t => t.id === taskId);
     if (!task) return;
-    
+
     // Initialize attachments array if it doesn't exist
     if (!task.attachments) task.attachments = [];
-    
+
     for (const file of files) {
         try {
             const savedFile = await saveAttachmentFile(file);
-            
+
             const attachment = {
                 id: generateUniqueId(),
                 name: file.name,
@@ -2650,14 +2650,14 @@ async function processFiles(files) {
                 mimeType: file.type,
                 uploadedAt: new Date().toISOString()
             };
-            
+
             task.attachments.push(attachment);
         } catch (error) {
             console.error('Failed to save attachment:', error);
             alert(`Failed to save file: ${file.name}`);
         }
     }
-    
+
     renderAttachments(task);
     renderTasks(); // Update task list to show attachment counts
     saveDataToStorage();
@@ -2670,17 +2670,17 @@ async function saveAttachmentFile(file) {
         if (!attachmentsDir.success) {
             throw new Error(attachmentsDir.error);
         }
-        
+
         // Read file as buffer
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Array.from(new Uint8Array(arrayBuffer));
-        
+
         // Save file with unique timestamp name
         const result = await window.electronAPI.attachments.saveFile(buffer, file.name);
         if (!result.success) {
             throw new Error(result.error);
         }
-        
+
         return {
             path: result.path,
             name: file.name,
@@ -2710,11 +2710,11 @@ async function openAttachment(filePath) {
 
 function removeAttachment(index) {
     if (!currentTaskForNote) return;
-    
+
     const { dateKey, taskId } = currentTaskForNote;
     const task = appData.tasks[dateKey].find(t => t.id === taskId);
     if (!task || !task.attachments) return;
-    
+
     if (confirm('Are you sure you want to remove this attachment?')) {
         task.attachments.splice(index, 1);
         renderAttachments(task);
@@ -2726,36 +2726,36 @@ function removeAttachment(index) {
 // Screenshot/Clipboard Paste Functionality
 function initializeClipboardPaste() {
     // Global paste event listener
-    document.addEventListener('keydown', async function(event) {
+    document.addEventListener('keydown', async function (event) {
         // Check for Ctrl+V (or Cmd+V on Mac)
         if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
             // Only handle if task modal is open and we're not in an input field
             const taskModal = document.getElementById('taskNoteModal');
             const activeElement = document.activeElement;
-            
+
             if (taskModal && taskModal.style.display === 'block' && currentTaskForNote) {
                 // Don't interfere if user is typing in an input or textarea
                 if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
                     return;
                 }
-                
+
                 event.preventDefault();
                 await handleClipboardPaste();
             }
         }
     });
-    
+
     // Also add paste event listener to the attachments container for direct paste
-    document.addEventListener('paste', async function(event) {
+    document.addEventListener('paste', async function (event) {
         const taskModal = document.getElementById('taskNoteModal');
         if (taskModal && taskModal.style.display === 'block' && currentTaskForNote) {
             const activeElement = document.activeElement;
-            
+
             // Don't interfere if user is typing in an input or textarea
             if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
                 return;
             }
-            
+
             event.preventDefault();
             await handleClipboardPasteEvent(event);
         }
@@ -2770,9 +2770,9 @@ async function handleClipboardPaste() {
             console.log('Clipboard access denied');
             return;
         }
-        
+
         const clipboardItems = await navigator.clipboard.read();
-        
+
         for (const clipboardItem of clipboardItems) {
             for (const type of clipboardItem.types) {
                 if (type.startsWith('image/')) {
@@ -2784,7 +2784,7 @@ async function handleClipboardPaste() {
                 }
             }
         }
-        
+
         console.log('No image found in clipboard');
     } catch (error) {
         console.error('Failed to read clipboard:', error);
@@ -2796,7 +2796,7 @@ async function handleClipboardPaste() {
 async function handleClipboardPasteEvent(event) {
     try {
         const items = event.clipboardData.items;
-        
+
         for (let i = 0; i < items.length; i++) {
             const item = items[i];
             if (item.type.startsWith('image/')) {
@@ -2809,7 +2809,7 @@ async function handleClipboardPasteEvent(event) {
                 }
             }
         }
-        
+
         console.log('No image found in paste data');
     } catch (error) {
         console.error('Failed to handle paste event:', error);
@@ -2819,13 +2819,13 @@ async function handleClipboardPasteEvent(event) {
 function closeTaskNoteModal() {
     document.getElementById('taskNoteModal').style.display = 'none';
     currentTaskForNote = null;
-    
+
     // Clear inputs
     document.getElementById('new-issue-input').value = '';
     document.getElementById('new-subtask-input').value = '';
     document.getElementById('new-appreciation-input').value = '';
     document.getElementById('task-title-input').value = '';
-    
+
 }
 
 function saveTaskNote() {
@@ -2838,11 +2838,11 @@ function saveTaskNote() {
             if (newTaskName && newTaskName !== task.text) {
                 task.text = newTaskName;
             }
-            
+
             task.note = document.getElementById('task-note-content').value;
             task.status = document.getElementById('task-status-select').value;
             task.noteUpdatedAt = new Date().toISOString();
-            
+
             saveDataToStorage();
             renderTasks();
         }
@@ -2864,12 +2864,12 @@ function searchTasks() {
 function performSearch() {
     const searchTerm = document.getElementById('search-task-input').value.trim().toLowerCase();
     const resultsContainer = document.getElementById('search-results');
-    
+
     if (searchTerm.length === 0) {
         resultsContainer.style.display = 'none';
         return;
     }
-    
+
     if (searchTerm.length < 2) {
         resultsContainer.innerHTML = `
             <div style="padding: 12px; text-align: center; color: #64748b; font-size: 11px;">
@@ -2879,30 +2879,30 @@ function performSearch() {
         resultsContainer.style.display = 'block';
         return;
     }
-    
+
     const searchResults = [];
     let tasksToSearch = [];
-    
+
     // Determine which tasks to search based on active filters
     if (Object.keys(activeFilters).length > 0) {
         // If filters are active, search only in filtered results
         const dateKey = getDateKey(todoViewDate);
         let currentTasks = [];
-        
+
         // Get tasks for current date
         const todayTasks = appData.tasks[dateKey] || [];
-        
+
         // Get tasks from previous dates based on includeCompleted filter
         Object.keys(appData.tasks).forEach(key => {
             if (key !== dateKey) {
                 const taskDate = new Date(key);
                 const today = new Date(dateKey);
-                
+
                 if (taskDate < today) {
                     const previousTasks = appData.tasks[key] || [];
                     const shouldIncludeCompleted = activeFilters.includeCompleted;
-                    const previousTasksToShow = shouldIncludeCompleted ? 
-                        previousTasks : 
+                    const previousTasksToShow = shouldIncludeCompleted ?
+                        previousTasks :
                         previousTasks.filter(task => !task.completed);
                     currentTasks = currentTasks.concat(previousTasksToShow.map(task => ({
                         ...task,
@@ -2912,17 +2912,17 @@ function performSearch() {
                 }
             }
         });
-        
+
         // Add today's tasks
         currentTasks = currentTasks.concat(todayTasks);
-        
+
         // Apply filters to get the filtered task list
         tasksToSearch = applyTaskFilters(currentTasks, dateKey);
-        
+
         // Convert to search format with dateKey information
         tasksToSearch.forEach(task => {
             const taskDateKey = task.originalDate || dateKey;
-            if (task.text.toLowerCase().includes(searchTerm) || 
+            if (task.text.toLowerCase().includes(searchTerm) ||
                 (task.note && task.note.toLowerCase().includes(searchTerm)) ||
                 (task.assignees && task.assignees.some(assignee => assignee.toLowerCase().includes(searchTerm))) ||
                 (task.assignee && task.assignee.toLowerCase().includes(searchTerm)) ||
@@ -2944,7 +2944,7 @@ function performSearch() {
         // If no filters are active, search through all dates and tasks globally
         Object.keys(appData.tasks).forEach(dateKey => {
             appData.tasks[dateKey].forEach(task => {
-                if (task.text.toLowerCase().includes(searchTerm) || 
+                if (task.text.toLowerCase().includes(searchTerm) ||
                     (task.note && task.note.toLowerCase().includes(searchTerm)) ||
                     (task.assignees && task.assignees.some(assignee => assignee.toLowerCase().includes(searchTerm))) ||
                     (task.assignee && task.assignee.toLowerCase().includes(searchTerm)) ||
@@ -2964,7 +2964,7 @@ function performSearch() {
             });
         });
     }
-    
+
     if (searchResults.length === 0) {
         resultsContainer.innerHTML = `
             <div style="padding: 12px; text-align: center; color: #64748b; font-size: 11px;">
@@ -2974,10 +2974,10 @@ function performSearch() {
         resultsContainer.style.display = 'block';
         return;
     }
-    
+
     // Sort results by date (newest first)
     searchResults.sort((a, b) => new Date(b.dateKey) - new Date(a.dateKey));
-    
+
     resultsContainer.innerHTML = searchResults.map(result => `
         <div class="search-result-item" onclick="navigateToTask('${result.dateKey}', ${result.task.id})">
             <div class="search-result-task">${result.task.text}</div>
@@ -2989,7 +2989,7 @@ function performSearch() {
             ${(result.task.issues?.length || 0) > 0 || (result.task.appreciation?.length || 0) > 0 ? `<div style="color: #94a3b8; font-size: 8px; margin-top: 2px;">🚨 ${result.task.issues?.length || 0} issues | 👏 ${result.task.appreciation?.length || 0} appreciation</div>` : ''}
         </div>
     `).join('');
-    
+
     resultsContainer.style.display = 'block';
 }
 
@@ -2998,11 +2998,11 @@ function navigateToTask(dateKey, taskId) {
     todoViewDate = new Date(dateKey);
     updateDate();
     renderTasks();
-    
+
     // Clear search
     document.getElementById('search-task-input').value = '';
     document.getElementById('search-results').style.display = 'none';
-    
+
     // Highlight the task briefly
     setTimeout(() => {
         const taskElements = document.querySelectorAll('.task-item');
@@ -3031,38 +3031,38 @@ let lastTasksData = null;
 function renderTasks(forceUpdate = false) {
     const dateKey = getDateKey(todoViewDate);
     let currentTasks = [];
-    
+
     // Get tasks for current date
     const todayTasks = appData.tasks[dateKey] || [];
-    
+
     // Get tasks from all dates that should show up today
     Object.keys(appData.tasks).forEach(key => {
         // Skip current date - we'll add those separately
         if (key !== dateKey) {
             const taskDate = new Date(key);
             const today = new Date(dateKey);
-            
+
             // Only add if the task date is before today
             if (taskDate < today) {
                 const previousTasks = appData.tasks[key] || [];
-                
+
                 const tasksToShow = previousTasks.filter(task => {
                     // Always include uncompleted tasks from previous dates
                     if (!task.completed) {
                         return true;
                     }
-                    
+
                     // For completed tasks, check if they were completed on the current viewing date
                     if (task.completed && task.completedAt) {
                         const completedDate = new Date(task.completedAt);
                         const viewingDate = new Date(dateKey);
                         return completedDate.toDateString() === viewingDate.toDateString();
                     }
-                    
+
                     // Include completed tasks if filter is active (legacy behavior)
                     return activeFilters.includeCompleted;
                 });
-                
+
                 currentTasks = currentTasks.concat(tasksToShow.map(task => ({
                     ...task,
                     fromPreviousDate: true,
@@ -3071,19 +3071,19 @@ function renderTasks(forceUpdate = false) {
             }
         }
     });
-    
+
     // Add today's tasks (both completed and uncompleted)
     currentTasks = currentTasks.concat(todayTasks);
-    
+
     // Sort tasks with priority: Today's incomplete → Older incomplete → Today's completed → Older completed
     currentTasks.sort((a, b) => {
         const today = new Date(dateKey);
-        
+
         // Helper function to check if a task was created today
         const isCreatedToday = (task) => {
             return !task.fromPreviousDate;
         };
-        
+
         // Priority levels: 1 = Today incomplete, 2 = Older incomplete, 3 = Completed tasks
         const getPriority = (task) => {
             if (!task.completed && isCreatedToday(task)) return 1; // Today's incomplete tasks
@@ -3091,14 +3091,14 @@ function renderTasks(forceUpdate = false) {
             if (task.completed) return 3; // All completed tasks (already filtered by completion date in collection)
             return 4; // Fallback
         };
-        
+
         const aPriority = getPriority(a);
         const bPriority = getPriority(b);
-        
+
         if (aPriority !== bPriority) {
             return aPriority - bPriority;
         }
-        
+
         // Within same priority, sort by relevant timestamp (newest first)
         if (aPriority === 3 && bPriority === 3) {
             // For completed tasks, sort by completion time (most recently completed first)
@@ -3111,24 +3111,24 @@ function renderTasks(forceUpdate = false) {
                 return new Date(b.createdAt) - new Date(a.createdAt);
             }
         }
-        
+
         return 0; // Maintain original order if no timestamps
     });
-    
+
     const container = document.getElementById('tasks-container');
-    
+
     // Apply filters if any are active
     if (Object.keys(activeFilters).length > 0) {
         currentTasks = applyTaskFilters(currentTasks, dateKey);
     }
-    
+
     // Create a hash of the task data to check for changes
     const dataHash = JSON.stringify({
         dateKey,
-        tasks: currentTasks.map(t => ({ 
-            id: t.id, 
-            text: t.text, 
-            completed: t.completed, 
+        tasks: currentTasks.map(t => ({
+            id: t.id,
+            text: t.text,
+            completed: t.completed,
             priority: t.priority,
             assignees: t.assignees || [t.assignee] || [],
             status: t.status,
@@ -3143,17 +3143,17 @@ function renderTasks(forceUpdate = false) {
         })),
         filters: activeFilters
     });
-    
+
     // Only update if data has changed or forcing update
     if (!forceUpdate && dataHash === lastTasksRender) {
         return;
     }
-    
+
     // Store the current data hash
     lastTasksRender = dataHash;
     lastTasksData = currentTasks;
-    
-    
+
+
     if (currentTasks.length === 0) {
         const isFiltered = Object.keys(activeFilters).length > 0;
         container.innerHTML = `
@@ -3184,9 +3184,9 @@ function renderTasks(forceUpdate = false) {
                         <div class="task-meta">
                             <div class="task-meta-left">
                                 <select class="task-status" onchange="changeTaskStatus('${taskDateKey}', ${task.id}, this.value)">
-                                    ${(appData.taskStatuses || ['pending']).map(status => 
-                                        `<option value="${status}" ${task.status === status ? 'selected' : ''}>${status.charAt(0).toUpperCase() + status.slice(1)}</option>`
-                                    ).join('')}
+                                    ${(appData.taskStatuses || ['pending']).map(status =>
+                `<option value="${status}" ${task.status === status ? 'selected' : ''}>${status.charAt(0).toUpperCase() + status.slice(1)}</option>`
+            ).join('')}
                                 </select>
                                 <div class="task-assign-multi" 
                                      onmouseenter="disableTaskDrag(this)" 
@@ -3194,9 +3194,9 @@ function renderTasks(forceUpdate = false) {
                                      onmousedown="event.stopPropagation()" 
                                      ondragstart="event.preventDefault(); event.stopPropagation();">
                                     <button class="assign-dropdown-btn" onclick="toggleAssigneeDropdown('${taskDateKey}', ${task.id}, this); event.stopPropagation();">
-                                        ${task.assignees && task.assignees.length > 0 ? 
-                                            task.assignees[0] + (task.assignees.length > 1 ? ` +${task.assignees.length - 1}` : '')
-                                            : 'Assign to...'}
+                                        ${task.assignees && task.assignees.length > 0 ?
+                    task.assignees[0] + (task.assignees.length > 1 ? ` +${task.assignees.length - 1}` : '')
+                    : 'Assign to...'}
                                         <span class="dropdown-arrow">▼</span>
                                     </button>
                                     <div class="assign-dropdown" id="assign-dropdown-${taskDateKey}-${task.id}" style="display: none;" 
@@ -3235,17 +3235,17 @@ function renderTasks(forceUpdate = false) {
             </div>
         `;
         }).join('');
-        
+
         // Update progress
         const completed = currentTasks.filter(t => t.completed).length;
         const total = currentTasks.length;
         const percentage = Math.round((completed / total) * 100);
-        
+
         document.getElementById('progress-text').textContent = `Progress: ${completed}/${total}`;
         document.getElementById('progress-percent').textContent = `${percentage}%`;
         document.getElementById('progress-fill').style.width = `${percentage}%`;
         document.getElementById('progress-section').style.display = 'block';
-        
+
     }
 }
 
@@ -3258,9 +3258,9 @@ function initializeFilterModal() {
 function populateTeamFilter() {
     const container = document.getElementById('team-filter-options');
     if (!container) return;
-    
+
     const teamMembers = (appData && appData.teamMembers) || [];
-    
+
     container.innerHTML = teamMembers.map(member => `
         <div class="team-filter-option">
             <input type="checkbox" id="team-filter-${member.replace(/[^a-zA-Z0-9]/g, '')}" 
@@ -3273,7 +3273,7 @@ function populateTeamFilter() {
 function toggleTeamFilterDropdown() {
     const dropdown = document.getElementById('team-filter-dropdown');
     const isVisible = dropdown.style.display !== 'none';
-    
+
     if (isVisible) {
         dropdown.style.display = 'none';
     } else {
@@ -3295,7 +3295,7 @@ function closeTeamFilterOnOutside(event) {
 function updateTeamFilterDisplay() {
     const checkboxes = document.querySelectorAll('#team-filter-options input[type="checkbox"]:checked');
     const displaySpan = document.getElementById('team-filter-display');
-    
+
     if (checkboxes.length === 0) {
         displaySpan.textContent = 'All Team Members';
     } else if (checkboxes.length === 1) {
@@ -3312,10 +3312,10 @@ function getSelectedTeamMembers() {
 
 function openFilterModal() {
     document.getElementById('filterModal').style.display = 'block';
-    
+
     // Populate team filter first
     populateTeamFilter();
-    
+
     // Populate current filter values
     document.getElementById('filter-status').value = activeFilters.status || '';
     document.getElementById('filter-date-from').value = activeFilters.dateFrom || '';
@@ -3323,7 +3323,7 @@ function openFilterModal() {
     document.getElementById('filter-feedback').value = activeFilters.feedback || '';
     document.getElementById('filter-min-issues').value = activeFilters.minIssues || '';
     document.getElementById('filter-include-completed').checked = activeFilters.includeCompleted || false;
-    
+
     // Restore selected team members
     if (activeFilters.teamMembers) {
         activeFilters.teamMembers.forEach(member => {
@@ -3332,20 +3332,20 @@ function openFilterModal() {
         });
         updateTeamFilterDisplay();
     }
-    
+
     // Fix date inputs after modal opens
     setTimeout(() => {
         const dateInputs = document.querySelectorAll('#filterModal input[type="date"]');
         dateInputs.forEach(input => {
-            input.addEventListener('click', function(e) {
+            input.addEventListener('click', function (e) {
                 e.stopPropagation();
             });
-            
-            input.addEventListener('focus', function(e) {
+
+            input.addEventListener('focus', function (e) {
                 e.stopPropagation();
             });
-            
-            input.addEventListener('change', function(e) {
+
+            input.addEventListener('change', function (e) {
                 e.stopPropagation();
             });
         });
@@ -3358,7 +3358,7 @@ function closeFilterModal() {
 
 function applyFilters() {
     const selectedTeamMembers = getSelectedTeamMembers();
-    
+
     activeFilters = {
         status: document.getElementById('filter-status').value,
         teamMembers: selectedTeamMembers.length > 0 ? selectedTeamMembers : null,
@@ -3368,14 +3368,14 @@ function applyFilters() {
         minIssues: parseInt(document.getElementById('filter-min-issues').value) || 0,
         includeCompleted: document.getElementById('filter-include-completed').checked
     };
-    
+
     // Remove empty filters (but keep boolean false values for includeCompleted)
     Object.keys(activeFilters).forEach(key => {
         if (!activeFilters[key] && activeFilters[key] !== 0 && activeFilters[key] !== false) {
             delete activeFilters[key];
         }
     });
-    
+
     // Update filter button appearance
     const filterBtn = document.getElementById('filter-btn');
     if (Object.keys(activeFilters).length > 0) {
@@ -3385,14 +3385,14 @@ function applyFilters() {
         filterBtn.classList.remove('active');
         filterBtn.innerHTML = '<span>🔍</span>Filter';
     }
-    
+
     renderTasks();
     closeFilterModal();
 }
 
 function clearFilters() {
     activeFilters = {};
-    
+
     // Reset form
     document.getElementById('filter-status').value = '';
     document.getElementById('filter-date-from').value = '';
@@ -3400,39 +3400,39 @@ function clearFilters() {
     document.getElementById('filter-feedback').value = '';
     document.getElementById('filter-min-issues').value = '';
     document.getElementById('filter-include-completed').checked = false;
-    
+
     // Reset team member checkboxes
     const teamCheckboxes = document.querySelectorAll('#team-filter-options input[type="checkbox"]');
     teamCheckboxes.forEach(cb => cb.checked = false);
     updateTeamFilterDisplay();
-    
+
     // Update filter button
     const filterBtn = document.getElementById('filter-btn');
     filterBtn.classList.remove('active');
     filterBtn.innerHTML = '<span>🔍</span>Filter';
-    
+
     renderTasks();
 }
 
 function applyTaskFilters(tasks) {
     let filteredTasks = [];
-    
+
     // If we have date range filters, search across all dates
     if (activeFilters.dateFrom || activeFilters.dateTo) {
         Object.keys(appData.tasks).forEach(dateKey => {
             const taskDate = new Date(dateKey);
             let includeDate = true;
-            
+
             if (activeFilters.dateFrom) {
                 const fromDate = new Date(activeFilters.dateFrom);
                 if (taskDate < fromDate) includeDate = false;
             }
-            
+
             if (activeFilters.dateTo) {
                 const toDate = new Date(activeFilters.dateTo);
                 if (taskDate > toDate) includeDate = false;
             }
-            
+
             if (includeDate) {
                 filteredTasks = filteredTasks.concat(appData.tasks[dateKey] || []);
             }
@@ -3441,25 +3441,25 @@ function applyTaskFilters(tasks) {
         // Only show tasks from current date
         filteredTasks = tasks;
     }
-    
+
     // Apply other filters
     return filteredTasks.filter(task => {
         // Status filter
         if (activeFilters.status && task.status !== activeFilters.status) {
             return false;
         }
-        
+
         // Team members filter - check if any selected member is assigned to the task
         if (activeFilters.teamMembers && activeFilters.teamMembers.length > 0) {
             const taskAssignees = task.assignees || (task.assignee ? [task.assignee] : []);
-            const hasSelectedMember = activeFilters.teamMembers.some(selectedMember => 
+            const hasSelectedMember = activeFilters.teamMembers.some(selectedMember =>
                 taskAssignees.includes(selectedMember)
             );
             if (!hasSelectedMember) {
                 return false;
             }
         }
-        
+
         // Feedback type filter
         if (activeFilters.feedback) {
             if (activeFilters.feedback === 'issues' && (!task.issues || task.issues.length === 0)) {
@@ -3469,7 +3469,7 @@ function applyTaskFilters(tasks) {
                 return false;
             }
         }
-        
+
         // Minimum issues filter
         if (activeFilters.minIssues > 0) {
             const issueCount = task.issues?.length || 0;
@@ -3477,12 +3477,12 @@ function applyTaskFilters(tasks) {
                 return false;
             }
         }
-        
+
         // Completion status filter - exclude completed tasks unless specifically requested
         if (!activeFilters.includeCompleted && task.completed) {
             return false;
         }
-        
+
         return true;
     });
 }
@@ -3523,12 +3523,12 @@ let lastTransactionsRender = '';
 async function renderTransactions(forceUpdate = false) {
     const container = document.getElementById('transactions-list');
     if (!container) return;
-    
+
     // Skip if transactions section is not visible and not forcing update
     if (container.style.display === 'none' && !forceUpdate) {
         return;
     }
-    
+
     try {
         // Get current user
         const currentUser = authSystem.currentUser;
@@ -3536,63 +3536,63 @@ async function renderTransactions(forceUpdate = false) {
             container.innerHTML = '<div style="text-align: center; color: rgba(255, 255, 255, 0.5); padding: 20px; font-size: 12px;">Please login to view transactions</div>';
             return;
         }
-        
+
         // Use user ID for Firebase access
         const userId = currentUser.id;
         const firebaseUrl = 'https://dashboard-app-fcd42-default-rtdb.firebaseio.com';
-        
+
         // Fetch user transactions from user-specific transactions.json file
         const response = await fetch(`${firebaseUrl}/${userId}/transactions.json`);
-        
+
         let transactions = [];
         if (response.ok) {
             const transactionData = await response.json();
-            
+
             if (transactionData) {
                 // Handle both encrypted and legacy unencrypted transactions
                 transactions = await decryptTransactionsForUI(transactionData);
             }
         }
-        
+
         // Sort transactions by date (most recent first)
         transactions.sort((a, b) => {
             const dateA = new Date(a.timestamp || a.date || 0);
             const dateB = new Date(b.timestamp || b.date || 0);
             return dateB - dateA;
         });
-        
+
         // Filter out read transactions and get recent transactions (limit to 10)
         const unreadTransactions = transactions.filter(t => !t.read);
         const recentTransactions = unreadTransactions.slice(0, 10);
-        
+
         // Create a hash of the transaction data to check for changes
-        const dataHash = JSON.stringify(recentTransactions.map(t => ({ 
-            id: t.id, 
-            amount: t.amount, 
-            type: t.type, 
+        const dataHash = JSON.stringify(recentTransactions.map(t => ({
+            id: t.id,
+            amount: t.amount,
+            type: t.type,
             timestamp: t.timestamp || t.date,
             description: t.merchant || t.description || t.emailSubject
         })));
-        
+
         // Only update if data has changed
         if (!forceUpdate && dataHash === lastTransactionsRender) {
             return;
         }
-        
+
         // Store the current data hash
         lastTransactionsRender = dataHash;
         lastTransactionsData = recentTransactions;
-        
+
         if (recentTransactions.length === 0) {
             container.innerHTML = '<div style="text-align: center; color: rgba(255, 255, 255, 0.5); padding: 20px; font-size: 12px;">No recent transactions</div>';
             return;
         }
-        
+
         container.innerHTML = recentTransactions.map(transaction => {
             // Use new transaction structure from ML extraction
             const timestamp = transaction.timestamp || transaction.date || new Date().toISOString();
             const timeAgo = getTimeAgo(timestamp);
-            
+
             // Format date for display - only show if valid
             let dateDisplay = '';
             if (transaction.date && transaction.date !== 'Invalid Date' && transaction.date.match(/\d{2}-\d{2}-\d{2}/)) {
@@ -3603,7 +3603,7 @@ async function renderTransactions(forceUpdate = false) {
                     if (!isNaN(date.getTime())) {
                         dateDisplay = date.toLocaleDateString('en-GB', {
                             day: '2-digit',
-                            month: '2-digit', 
+                            month: '2-digit',
                             year: '2-digit'
                         });
                     }
@@ -3611,32 +3611,32 @@ async function renderTransactions(forceUpdate = false) {
                     // Don't show invalid dates
                 }
             }
-            
+
             // Use credit_or_debit from new structure
             const creditOrDebit = transaction.credit_or_debit || 'debit';
             const isCredit = creditOrDebit === 'credit';
             const sign = isCredit ? '+' : '-';
             const colorClass = isCredit ? 'credited' : 'debited';
-            
+
             // Format amount safely
             const amount = transaction.amount || 0;
             const amountDisplay = `${sign}₹${Math.abs(amount).toLocaleString()}`;
-            
+
             // Get merchant name (not description)
             const merchant = transaction.merchant || 'Unknown';
-            
+
             // Get account info - use to_account for credits, account_number for debits
-            const accountInfo = isCredit ? 
-                (transaction.to_account || transaction.account_number) : 
+            const accountInfo = isCredit ?
+                (transaction.to_account || transaction.account_number) :
                 (transaction.from_account || transaction.account_number);
             const accountDisplay = accountInfo ? `A/c ${accountInfo}` : 'Unknown Account';
-            
+
             // Get mode (UPI, NEFT, etc.)
             const mode = transaction.mode || 'Unknown';
-            
+
             // Get source info
             const source = transaction.email_from ? 'Auto-detected' : 'Manual';
-            
+
             return `
                 <div class="transaction-item" onclick="showTransactionDetails('${transaction.id}')">
                     <div class="transaction-main">
@@ -3656,7 +3656,7 @@ async function renderTransactions(forceUpdate = false) {
                 </div>
             `;
         }).join('');
-        
+
     } catch (error) {
         console.error('Error loading transactions:', error);
         container.innerHTML = '<div style="text-align: center; color: rgba(255, 255, 255, 0.5); padding: 20px; font-size: 12px;">Error loading transactions</div>';
@@ -3667,16 +3667,16 @@ function getTimeAgo(timestamp) {
     const now = new Date();
     const time = new Date(timestamp);
     const diffInMinutes = Math.floor((now - time) / (1000 * 60));
-    
+
     if (diffInMinutes < 1) return 'now';
     if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-    
+
     const diffInHours = Math.floor(diffInMinutes / 60);
     if (diffInHours < 24) return `${diffInHours}h ago`;
-    
+
     const diffInDays = Math.floor(diffInHours / 24);
     if (diffInDays < 7) return `${diffInDays}d ago`;
-    
+
     return time.toLocaleDateString();
 }
 
@@ -3686,20 +3686,20 @@ let currentTransactionId = null;
 async function toggleTransactions() {
     const container = document.getElementById('transactions-list');
     const arrow = document.getElementById('transactions-arrow');
-    
+
     if (container.style.display === 'none') {
         // Require Touch ID authentication before showing transactions
         if (window.electronAPI && window.electronAPI.biometric) {
             try {
                 container.innerHTML = '<div style="text-align: center; color: rgba(255, 255, 255, 0.5); padding: 20px; font-size: 12px;">🔐 Touch ID authentication required...</div>';
-                
+
                 const authResult = await window.electronAPI.biometric.authenticate('Access recent transactions');
-                
+
                 if (authResult.success) {
                     container.style.display = 'block';
                     arrow.classList.add('expanded');
                     arrow.textContent = '▲';
-                    
+
                     // Load transactions after successful authentication
                     await renderTransactions(true);
                 } else {
@@ -3734,13 +3734,13 @@ async function toggleTransactions() {
 async function showTransactionDetails(transactionId) {
     // Get transactions from Firebase
     let transaction = null;
-    
+
     try {
         const currentUser = authSystem.currentUser;
         if (currentUser && currentUser.id) {
             const firebaseUrl = 'https://dashboard-app-fcd42-default-rtdb.firebaseio.com';
             const response = await fetch(`${firebaseUrl}/${currentUser.id}/transactions.json`);
-            
+
             if (response.ok) {
                 const transactions = await response.json();
                 if (Array.isArray(transactions)) {
@@ -3748,7 +3748,7 @@ async function showTransactionDetails(transactionId) {
                 }
             }
         }
-        
+
         // Fallback to local transactions
         if (!transaction) {
             transaction = appData.transactions.find(t => t.id === transactionId);
@@ -3757,11 +3757,11 @@ async function showTransactionDetails(transactionId) {
         console.error('Error loading transaction details:', error);
         transaction = appData.transactions.find(t => t.id === transactionId);
     }
-    
+
     if (!transaction) return;
-    
+
     currentTransactionId = transactionId;
-    
+
     // Use new transaction structure
     const creditOrDebit = transaction.credit_or_debit || 'debit';
     const isCredit = creditOrDebit === 'credit';
@@ -3769,11 +3769,11 @@ async function showTransactionDetails(transactionId) {
     const amount = transaction.amount || 0;
     const amountDisplay = `${sign}₹${Math.abs(amount).toLocaleString()}`;
     const colorClass = isCredit ? 'credited' : 'debited';
-    
+
     // Get all available data with new format
     const merchant = transaction.merchant || 'Unknown Merchant';
     const description = transaction.description || 'Transaction processed';
-    const accountInfo = isCredit ? 
+    const accountInfo = isCredit ?
         (transaction.to_account || transaction.account_number || 'Unknown Account') :
         (transaction.from_account || transaction.account_number || 'Unknown Account');
     const mode = transaction.mode || 'Unknown';
@@ -3782,7 +3782,7 @@ async function showTransactionDetails(transactionId) {
     const emailFrom = transaction.email_from || 'Manual Entry';
     const category = transaction.category || 'other';
     const currency = transaction.currency || 'INR';
-    
+
     const detailsHtml = `
         <div class="transaction-amount-large ${colorClass}">
             ${amountDisplay}
@@ -3836,14 +3836,14 @@ async function showTransactionDetails(transactionId) {
         </div>
         ` : ''}
     `;
-    
+
     document.getElementById('transaction-details-content').innerHTML = detailsHtml;
     document.getElementById('transactionModal').style.display = 'block';
 }
 
 async function markTransactionAsRead() {
     if (!currentTransactionId) return;
-    
+
     try {
         // Mark as read in local appData
         const transactionIndex = appData.transactions.findIndex(t => t.id === currentTransactionId);
@@ -3851,7 +3851,7 @@ async function markTransactionAsRead() {
             appData.transactions[transactionIndex].read = true;
             saveDataToStorage();
         }
-        
+
         // Mark as read in Firebase if user is authenticated
         if (authSystem.currentUser && authSystem.currentUser.id) {
             const response = await fetch(`${FIREBASE_URL}/${authSystem.currentUser.id}/transactions.json`);
@@ -3864,14 +3864,14 @@ async function markTransactionAsRead() {
                         // Update the entire transactions array
                         await fetch(`${FIREBASE_URL}/${authSystem.currentUser.id}/transactions.json`, {
                             method: 'PUT',
-                            headers: {'Content-Type': 'application/json'},
+                            headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(transactions)
                         });
                     }
                 }
             }
         }
-        
+
         closeTransactionModal();
         renderTransactions();
     } catch (error) {
@@ -3926,22 +3926,22 @@ class SecureCardEncryption {
         try {
             const encoder = new TextEncoder();
             const data = encoder.encode(plaintext);
-            
+
             // Generate random IV
             const iv = crypto.getRandomValues(new Uint8Array(this.ivLength));
-            
+
             // Encrypt
             const encrypted = await crypto.subtle.encrypt(
                 { name: this.algorithm, iv: iv },
                 userKey,
                 data
             );
-            
+
             // Combine IV and encrypted data
             const result = new Uint8Array(iv.length + encrypted.byteLength);
             result.set(iv);
             result.set(new Uint8Array(encrypted), iv.length);
-            
+
             // Return as base64
             return btoa(String.fromCharCode(...result));
         } catch (error) {
@@ -3957,18 +3957,18 @@ class SecureCardEncryption {
             const data = new Uint8Array(
                 atob(encryptedData).split('').map(char => char.charCodeAt(0))
             );
-            
+
             // Extract IV and encrypted data
             const iv = data.slice(0, this.ivLength);
             const encrypted = data.slice(this.ivLength);
-            
+
             // Decrypt
             const decrypted = await crypto.subtle.decrypt(
                 { name: this.algorithm, iv: iv },
                 userKey,
                 encrypted
             );
-            
+
             // Return as string
             const decoder = new TextDecoder();
             return decoder.decode(decrypted);
@@ -4040,14 +4040,14 @@ function simpleDecrypt(encryptedText) {
 // Transaction decryption functions for ML integration
 async function decryptTransactionsForUI(transactionData) {
     const transactions = [];
-    
+
     if (!transactionData) return transactions;
-    
+
     // Handle both object (Firebase structure) and array formats
-    const transactionEntries = Array.isArray(transactionData) 
+    const transactionEntries = Array.isArray(transactionData)
         ? transactionData.map((item, index) => [index.toString(), item])
         : Object.entries(transactionData);
-    
+
     for (const [firebaseKey, transaction] of transactionEntries) {
         try {
             if (transaction && typeof transaction === 'object') {
@@ -4093,7 +4093,7 @@ async function decryptTransactionsForUI(transactionData) {
             console.error(`Error processing transaction ${firebaseKey}:`, error);
         }
     }
-    
+
     return transactions;
 }
 
@@ -4102,7 +4102,7 @@ async function encryptTransactionForStorage(transactionData) {
     if (!userEncryptionKey) {
         throw new Error('Encryption key not initialized');
     }
-    
+
     const jsonData = JSON.stringify(transactionData);
     return await secureEncrypt(jsonData);
 }
@@ -4135,19 +4135,19 @@ async function showCreditCards() {
     try {
         // Require Touch ID authentication to access credit cards
         console.log('🔐 Requesting Touch ID authentication for credit card access...');
-        
+
         const authResult = await window.electronAPI.biometric.authenticate('Access saved credit cards');
-        
+
         if (!authResult.success) {
             alert(`Authentication failed: ${authResult.error || 'Unknown error'}`);
             return;
         }
-        
+
         console.log('✅ Touch ID authentication successful');
-        
+
         document.getElementById('creditCardsModal').style.display = 'block';
         await renderCreditCards();
-        
+
     } catch (error) {
         console.error('Error accessing credit cards:', error);
         alert('Failed to access credit cards. Please try again.');
@@ -4157,16 +4157,16 @@ async function showCreditCards() {
 async function renderCreditCards() {
     const container = document.getElementById('credit-cards-list');
     const creditCards = appData.creditCards || [];
-    
+
     if (creditCards.length === 0) {
         container.innerHTML = '<div style="text-align: center; color: rgba(255, 255, 255, 0.5); padding: 20px;">No saved credit cards</div>';
         return;
     }
-    
+
     // Render cards with masked numbers only
     const cardPromises = creditCards.map(async card => {
         let cardNumber;
-        
+
         try {
             // Handle both new AES-256 and legacy encryption
             if (card.isSecurelyEncrypted) {
@@ -4180,9 +4180,9 @@ async function renderCreditCards() {
             console.error('Error decrypting for display:', error);
             cardNumber = '****';
         }
-        
+
         const maskedNumber = card.isSecurelyEncrypted ? '**** **** **** ****' : maskCardNumber(cardNumber);
-        
+
         return `
             <div class="credit-card-item">
                 <div class="card-info">
@@ -4197,7 +4197,7 @@ async function renderCreditCards() {
             </div>
         `;
     });
-    
+
     try {
         const cardHtmlArray = await Promise.all(cardPromises);
         container.innerHTML = cardHtmlArray.join('');
@@ -4221,30 +4221,30 @@ async function saveNewCard() {
     const number = document.getElementById('card-number').value.replace(/\s/g, '');
     const expiry = document.getElementById('card-expiry').value;
     const cvv = document.getElementById('card-cvv').value;
-    
+
     if (!name || !number || !expiry || !cvv) {
         alert('Please fill all fields');
         return;
     }
-    
+
     if (number.length < 13 || number.length > 19) {
         alert('Please enter a valid card number');
         return;
     }
-    
+
     if (!/^\d{2}\/\d{2}$/.test(expiry)) {
         alert('Please enter expiry in MM/YY format');
         return;
     }
-    
+
     if (cvv.length < 3 || cvv.length > 4) {
         alert('Please enter a valid CVV');
         return;
     }
-    
+
     // Encrypt card data with AES-256
     let encryptedNumber, encryptedExpiry, encryptedCVV;
-    
+
     try {
         // Use secure AES-256 encryption
         encryptedNumber = await secureEncrypt(number);
@@ -4255,7 +4255,7 @@ async function saveNewCard() {
         alert('Failed to encrypt card data. Please ensure you are logged in and try again.');
         return;
     }
-    
+
     const newCard = {
         id: Date.now(),
         name: name,
@@ -4265,11 +4265,11 @@ async function saveNewCard() {
         isSecurelyEncrypted: true, // Flag to indicate AES-256 encryption
         addedDate: new Date().toISOString()
     };
-    
+
     if (!appData.creditCards) {
         appData.creditCards = [];
     }
-    
+
     appData.creditCards.push(newCard);
     saveDataToStorage();
     closeAddCardModal();
@@ -4279,23 +4279,23 @@ async function saveNewCard() {
 async function showCardDetails(cardId) {
     const card = appData.creditCards.find(c => c.id === cardId);
     if (!card) return;
-    
+
     try {
         // Require Touch ID authentication to view card details
         console.log('🔐 Requesting Touch ID authentication for card access...');
-        
+
         const authResult = await window.electronAPI.biometric.authenticate('Access credit card details');
-        
+
         if (!authResult.success) {
             alert(`Authentication failed: ${authResult.error || 'Unknown error'}`);
             return;
         }
-        
+
         console.log('✅ Touch ID authentication successful');
-        
+
         // Decrypt card data using AES-256
         let cardNumber, expiry, cvv;
-        
+
         try {
             // Try modern AES-256 decryption first
             if (card.encryptedNumber && card.isSecurelyEncrypted) {
@@ -4313,10 +4313,10 @@ async function showCardDetails(cardId) {
             alert('Failed to decrypt card data. Please try again.');
             return;
         }
-        
+
         // Show card details in a secure modal
         showSecureCardModal(card.name, cardNumber, expiry, cvv, card.addedDate);
-        
+
     } catch (error) {
         console.error('Error showing card details:', error);
         alert('Failed to access card details. Please try again.');
@@ -4364,9 +4364,9 @@ function showSecureCardModal(name, cardNumber, expiry, cvv, addedDate) {
             </div>
         </div>
     `;
-    
+
     document.body.appendChild(modal);
-    
+
     // Auto-close after 30 seconds for security
     setTimeout(() => {
         if (document.body.contains(modal)) {
@@ -4386,7 +4386,7 @@ function closeSecureCardModal() {
 async function copyToClipboard(text) {
     try {
         await navigator.clipboard.writeText(text);
-        
+
         // Show temporary notification
         const notification = document.createElement('div');
         notification.className = 'copy-notification';
@@ -4402,15 +4402,15 @@ async function copyToClipboard(text) {
             z-index: 10000;
             font-size: 14px;
         `;
-        
+
         document.body.appendChild(notification);
-        
+
         setTimeout(() => {
             if (document.body.contains(notification)) {
                 notification.remove();
             }
         }, 2000);
-        
+
     } catch (error) {
         console.error('Failed to copy to clipboard:', error);
         alert('Failed to copy to clipboard');
@@ -4420,7 +4420,7 @@ async function copyToClipboard(text) {
 function deleteCard(cardId) {
     const card = appData.creditCards.find(c => c.id === cardId);
     if (!card) return;
-    
+
     if (confirm(`Are you sure you want to delete "${card.name}"?`)) {
         appData.creditCards = appData.creditCards.filter(c => c.id !== cardId);
         saveDataToStorage();
@@ -4455,11 +4455,11 @@ function closeLinkModal() {
 function saveLinkModal() {
     const name = document.getElementById('link-name').value.trim();
     const url = document.getElementById('link-url').value.trim();
-    
+
     if (name && url) {
         // Ensure appData.quickLinks exists
         if (!appData.quickLinks) appData.quickLinks = [];
-        
+
         appData.quickLinks.push({
             id: Date.now(),
             name: name,
@@ -4483,17 +4483,17 @@ function deleteQuickLink(linkId) {
 function searchQuickLinks() {
     const searchTerm = document.getElementById('search-links-input').value.toLowerCase().trim();
     const linkElements = document.querySelectorAll('.quick-link');
-    
+
     if (searchTerm === '') {
         showAllQuickLinks();
         return;
     }
-    
+
     linkElements.forEach(linkElement => {
         const linkText = linkElement.textContent.toLowerCase();
         const linkContent = linkElement.querySelector('.link-content span:last-child');
         const linkName = linkContent ? linkContent.textContent.toLowerCase() : '';
-        
+
         if (linkName.includes(searchTerm) || linkText.includes(searchTerm)) {
             linkElement.classList.remove('hidden');
         } else {
@@ -4521,7 +4521,7 @@ function handleQuickLinksSearch(event) {
 function renderImportantFeed() {
     const container = document.getElementById('important-list');
     const emptyState = document.getElementById('feed-empty');
-    
+
     if (appData.importantFeed.length === 0) {
         container.innerHTML = '';
         emptyState.style.display = 'block';
@@ -4552,13 +4552,13 @@ function dragTask(event, dateKey, taskId) {
         taskId: taskId,
         task: appData.tasks[dateKey].find(t => t.id === taskId)
     };
-    
+
     // Set drag effect
     event.dataTransfer.effectAllowed = "copy";
-    
+
     // Add visual feedback to the task being dragged
     event.target.style.opacity = "0.5";
-    
+
     // Reset opacity when drag ends (for cancelled drags)
     setTimeout(() => {
         if (event.target) {
@@ -4567,7 +4567,7 @@ function dragTask(event, dateKey, taskId) {
             });
         }
     }, 0);
-    
+
     console.log('Dragging task:', draggedTask);
 }
 
@@ -4594,12 +4594,12 @@ function dropToImportant(event) {
     event.preventDefault();
     const dropZone = event.currentTarget;
     dropZone.classList.remove('drag-over');
-    
+
     if (!draggedTask) {
         console.error('No task data available for drop');
         return;
     }
-    
+
     try {
         // Create important feed item
         const importantItem = {
@@ -4612,43 +4612,43 @@ function dropToImportant(event) {
             addedAt: new Date().toISOString(),
             completed: draggedTask.task.completed
         };
-        
+
         // Add to important feed
         if (!appData.importantFeed) {
             appData.importantFeed = [];
         }
-        
+
         // Check if task is already in important feed
-        const exists = appData.importantFeed.some(item => 
-            item.originalTaskId === draggedTask.taskId && 
+        const exists = appData.importantFeed.some(item =>
+            item.originalTaskId === draggedTask.taskId &&
             item.originalDate === draggedTask.dateKey
         );
-        
+
         if (exists) {
             showNotification('Task is already in Important Feed', 'warning');
             return;
         }
-        
+
         appData.importantFeed.unshift(importantItem);
-        
+
         // Save to storage
         saveDataToStorage();
-        
+
         // Update UI
         renderImportantFeed();
-        
+
         // Show success notification
         showNotification('Task added to Important Feed!', 'success');
-        
+
         console.log('Task added to important feed:', importantItem);
-        
+
     } catch (error) {
         console.error('Error adding task to important feed:', error);
         showNotification('Error adding task to Important Feed', 'error');
     } finally {
         // Reset drag state
         draggedTask = null;
-        
+
         // Reset any visual feedback on dragged elements
         const taskElements = document.querySelectorAll('.task-item');
         taskElements.forEach(el => {
@@ -4663,7 +4663,7 @@ function navigateToImportantTask(originalTaskId, originalDate) {
         todoViewDate = new Date(originalDate);
         updateDate();
         renderTasks();
-        
+
         // Highlight the original task briefly
         setTimeout(() => {
             const taskElements = document.querySelectorAll('.task-item');
@@ -4678,14 +4678,14 @@ function navigateToImportantTask(originalTaskId, originalDate) {
                 }
             });
         }, 100);
-        
+
     }
 }
 
 function toggleImportantFeed() {
     const container = document.getElementById('important-feed');
     const arrow = document.getElementById('important-arrow');
-    
+
     if (container.style.display === 'none') {
         container.style.display = 'block';
         arrow.classList.add('expanded');
@@ -4702,7 +4702,7 @@ function clearImportantFeed() {
         alert('Important Feed is already empty!');
         return;
     }
-    
+
     if (confirm(`Are you sure you want to clear all ${appData.importantFeed.length} important items?`)) {
         appData.importantFeed = [];
         renderImportantFeed();
@@ -4716,17 +4716,17 @@ function exportImportantFeed() {
         alert('Important Feed is empty. Nothing to export.');
         return;
     }
-    
+
     const exportData = {
         exportDate: new Date().toISOString(),
         totalItems: appData.importantFeed.length,
         importantItems: appData.importantFeed
     };
-    
+
     const dataStr = JSON.stringify(exportData, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);
-    
+
     const link = document.createElement('a');
     link.href = url;
     link.download = `important-feed-${new Date().toISOString().split('T')[0]}.json`;
@@ -4734,7 +4734,7 @@ function exportImportantFeed() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    
+
     alert(`Exported ${appData.importantFeed.length} important items successfully!`);
 }
 
@@ -4785,14 +4785,14 @@ function exportData() {
         exportDate: new Date().toISOString(),
         exportedFrom: 'Desktop Dashboard'
     };
-    
+
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `dashboard-data-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
-    
+
     setTimeout(() => {
         alert('📁 Data exported successfully!\n\nThe file has been downloaded to your Downloads folder.');
     }, 500);
@@ -4805,7 +4805,7 @@ function importData(event) {
         reader.onload = (e) => {
             try {
                 const data = JSON.parse(e.target.result);
-                
+
                 // Validate data structure
                 if (data.tasks || data.quickNotes || data.importantFeed || data.quickLinks) {
                     if (confirm('This will replace all your current data. Are you sure you want to import?')) {
@@ -4823,13 +4823,13 @@ function importData(event) {
         };
         reader.readAsText(file);
     }
-    
+
     // Reset file input
     event.target.value = '';
 }
 
 // Close modals and search when clicking outside
-window.onclick = function(event) {
+window.onclick = function (event) {
     const modals = ['linkModal', 'taskNoteModal', 'filterModal', 'trashInstructionsModal', 'profileModal', 'emailConnectionModal'];
     modals.forEach(modalId => {
         const modal = document.getElementById(modalId);
@@ -4841,14 +4841,14 @@ window.onclick = function(event) {
             }
         }
     });
-    
+
     // Close search results when clicking outside
     const searchResults = document.getElementById('search-results');
     const searchInput = document.getElementById('search-task-input');
     if (searchResults && !searchResults.contains(event.target) && event.target !== searchInput) {
         searchResults.style.display = 'none';
     }
-    
+
     // Close assignee dropdowns when clicking outside
     if (!event.target.closest('.task-assign-multi')) {
         document.querySelectorAll('.assign-dropdown').forEach(dropdown => {
@@ -4866,9 +4866,9 @@ window.onclick = function(event) {
 }
 
 // Prevent date input events from bubbling up and closing modals
-document.addEventListener('click', function(event) {
+document.addEventListener('click', function (event) {
     // If clicking on a date input or its calendar picker, don't close modal
-    if (event.target.type === 'date' || 
+    if (event.target.type === 'date' ||
         event.target.classList.contains('date-input') ||
         event.target.closest('.date-input')) {
         event.stopPropagation();
@@ -4876,32 +4876,32 @@ document.addEventListener('click', function(event) {
 });
 
 // Prevent date input change events from closing modal
-document.addEventListener('change', function(event) {
+document.addEventListener('change', function (event) {
     if (event.target.type === 'date' || event.target.classList.contains('date-input')) {
         event.stopPropagation();
     }
 });
 
 // Fix for date picker interference with modals
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     const dateInputs = document.querySelectorAll('input[type="date"]');
     dateInputs.forEach(input => {
-        input.addEventListener('click', function(e) {
+        input.addEventListener('click', function (e) {
             e.stopPropagation();
         });
-        
-        input.addEventListener('focus', function(e) {
+
+        input.addEventListener('focus', function (e) {
             e.stopPropagation();
         });
-        
-        input.addEventListener('blur', function(e) {
+
+        input.addEventListener('blur', function (e) {
             e.stopPropagation();
         });
     });
 });
 
 // Keyboard shortcuts
-document.addEventListener('keydown', function(event) {
+document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape') {
         // Close any open modals
         const modals = ['linkModal', 'taskNoteModal', 'filterModal', 'trashInstructionsModal', 'profileModal', 'emailConnectionModal'];
@@ -4911,13 +4911,13 @@ document.addEventListener('keydown', function(event) {
                 modal.style.display = 'none';
             }
         });
-        
+
         // Close profile dropdown
         closeProfileDropdown();
-        
+
         // Close email options
         closeEmailOptions();
-        
+
         // Close search results
         const searchResults = document.getElementById('search-results');
         const searchInput = document.getElementById('search-task-input');
@@ -4927,13 +4927,13 @@ document.addEventListener('keydown', function(event) {
         if (searchInput) {
             searchInput.value = '';
         }
-        
+
         // Clear filters if active
         if (Object.keys(activeFilters).length > 0) {
             clearFilters();
         }
     }
-    
+
     // Ctrl/Cmd + Enter to add task
     if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
         const taskInput = document.getElementById('new-task-input');
@@ -4941,13 +4941,13 @@ document.addEventListener('keydown', function(event) {
             addTask();
         }
     }
-    
+
     // Ctrl/Cmd + F to focus search
     if ((event.ctrlKey || event.metaKey) && event.key === 'f') {
         event.preventDefault();
         document.getElementById('search-task-input').focus();
     }
-    
+
     // Ctrl/Cmd + Shift + F to open filter
     if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'F') {
         event.preventDefault();
@@ -4956,7 +4956,7 @@ document.addEventListener('keydown', function(event) {
 });
 
 // Add keyboard shortcuts for modal inputs
-document.addEventListener('keydown', function(event) {
+document.addEventListener('keydown', function (event) {
     if (event.key === 'Enter') {
         // Task note modal shortcuts
         if (document.getElementById('taskNoteModal').style.display === 'block') {
@@ -4966,7 +4966,7 @@ document.addEventListener('keydown', function(event) {
                 addAppreciation();
             }
         }
-        
+
         // Link modal shortcut
         if (document.getElementById('linkModal').style.display === 'block') {
             if (event.target.id === 'link-url' || event.target.id === 'link-name') {
@@ -4989,7 +4989,7 @@ class DashboardApp {
     init() {
         this.checkElectronAPI();
         this.setupSystemIntegrations();
-        
+
         // Only load data if user is authenticated
         if (authSystem.currentUser) {
             this.loadData();
@@ -5011,10 +5011,10 @@ class DashboardApp {
 
     setupSystemIntegrations() {
         if (!window.electronAPI) return;
-        
+
         // Setup Siri integration
         if (window.electronAPI.siri) {
-            
+
             // Register Siri shortcuts
             window.electronAPI.siri.registerShortcuts()
                 .then(success => {
@@ -5028,23 +5028,23 @@ class DashboardApp {
                     console.error('Error registering Siri shortcuts:', error);
                     this.showSystemStatus('Siri Error', 'error');
                 });
-            
+
             // Listen for Siri commands
             window.electronAPI.siri.onCommand((_event, data) => {
                 this.handleSiriCommand(data);
             });
         }
-        
+
     }
-    
+
     showSiriSetupInstructions() {
         return;
     }
 
     handleSiriCommand(data) {
         const { action, text } = data;
-        
-        
+
+
         // Handle different action formats
         let normalizedAction = action;
         if (action === 'add-task' || action === 'addTask') {
@@ -5054,24 +5054,24 @@ class DashboardApp {
         } else if (action === 'complete-task' || action === 'completeTask') {
             normalizedAction = 'complete-task';
         }
-        
-        
+
+
         switch (normalizedAction) {
             case 'add-task':
                 this.addTaskFromSiri(text);
                 this.showSiriNotification(`Added task: "${text || 'New task'}"`);
                 break;
-            
+
             case 'show-tasks':
                 this.showTasksFromSiri();
                 this.showSiriNotification('Showing your tasks');
                 break;
-            
+
             case 'complete-task':
                 this.completeTaskFromSiri(text);
                 this.showSiriNotification(`Completed task: "${text}"`);
                 break;
-            
+
             default:
                 this.showSiriNotification(`Sorry, I didn't understand the command: "${normalizedAction}"`);
         }
@@ -5081,18 +5081,18 @@ class DashboardApp {
         if (!taskText || taskText.trim() === '') {
             taskText = 'New task from Siri';
         }
-        
+
         const input = document.getElementById('new-task-input');
-        
+
         if (input) {
             input.value = taskText;
-            
+
             try {
                 addTask(); // Call the existing addTask function
             } catch (error) {
                 console.error('❌ Error calling addTask:', error);
             }
-            
+
             input.value = ''; // Clear input after adding
             this.showNotification(`Task added via Siri: "${taskText}"`);
         } else {
@@ -5100,16 +5100,16 @@ class DashboardApp {
             // Try to add task directly
             this.addTaskDirectly(taskText);
         }
-        
+
     }
-    
+
     addTaskDirectly(taskText) {
         const today = new Date().toISOString().split('T')[0];
-        
+
         if (!appData.tasks[today]) {
             appData.tasks[today] = [];
         }
-        
+
         const newTask = {
             id: Date.now(),
             text: taskText,
@@ -5121,22 +5121,22 @@ class DashboardApp {
             appreciation: [],
             timestamp: new Date().toISOString()
         };
-        
+
         appData.tasks[today].push(newTask);
-        
+
         // Save and re-render
         saveDataToStorage();
         renderTasks();
-        
+
     }
-    
+
     showTasksFromSiri() {
         // Focus on the dashboard and scroll to tasks
         const tasksContainer = document.getElementById('tasks-container');
         if (tasksContainer) {
             tasksContainer.scrollIntoView({ behavior: 'smooth' });
         }
-        
+
         // Highlight tasks briefly
         const taskItems = document.querySelectorAll('.task-item');
         taskItems.forEach(item => {
@@ -5145,14 +5145,14 @@ class DashboardApp {
                 item.style.backgroundColor = '';
             }, 2000);
         });
-        
+
     }
-    
+
     completeTaskFromSiri(taskText) {
         // Find and complete task by text
         const taskItems = document.querySelectorAll('.task-item');
         let foundTask = false;
-        
+
         taskItems.forEach(item => {
             const textElement = item.querySelector('.task-text');
             if (textElement && textElement.textContent.toLowerCase().includes(taskText.toLowerCase())) {
@@ -5163,13 +5163,13 @@ class DashboardApp {
                 }
             }
         });
-        
+
         if (!foundTask) {
             this.showSiriNotification(`Task "${taskText}" not found`);
         } else {
         }
     }
-    
+
     showSiriNotification(message) {
         // Create a temporary notification
         const notification = document.createElement('div');
@@ -5189,16 +5189,16 @@ class DashboardApp {
         `;
         notification.innerHTML = `🎤 ${message}`;
         document.body.appendChild(notification);
-        
+
         setTimeout(() => {
             notification.remove();
         }, 3000);
-        
+
         // Also use system notification if available
         if (window.electronAPI && window.electronAPI.notifications) {
             window.electronAPI.notifications.show('Siri Command', message);
         }
-        
+
     }
 
 
@@ -5206,13 +5206,13 @@ class DashboardApp {
         if (window.electronAPI?.notifications) {
             window.electronAPI.notifications.show('Dashboard', message);
         }
-        
+
         // Also show in-app notification
         const notification = document.createElement('div');
         notification.className = `notification ${type}`;
         notification.textContent = message;
         document.body.appendChild(notification);
-        
+
         setTimeout(() => {
             notification.remove();
         }, 3000);
@@ -5231,11 +5231,11 @@ class DashboardApp {
 document.addEventListener('DOMContentLoaded', () => {
     window.electronApp = new DashboardApp();
     loadMasterConsoleData();
-    
+
     // Enable paste and copy functionality for all text inputs and textareas
     const addClipboardSupport = (element) => {
         if (!element) return;
-        
+
         // Handle keyboard shortcuts
         element.addEventListener('keydown', async (e) => {
             // Handle paste (Cmd+V / Ctrl+V)
@@ -5258,7 +5258,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error('Failed to read clipboard:', error);
                 }
             }
-            
+
             // Handle copy (Cmd+C / Ctrl+C)
             if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
                 const selectedText = element.value.substring(element.selectionStart, element.selectionEnd);
@@ -5270,14 +5270,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             }
-            
+
             // Handle select all (Cmd+A / Ctrl+A)
             if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
                 e.preventDefault();
                 element.select();
             }
         });
-        
+
         // Handle context menu paste
         element.addEventListener('paste', async (e) => {
             e.preventDefault();
@@ -5299,11 +5299,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     };
-    
+
     // Add paste support to existing inputs
     const inputSelectors = [
         '#link-name',
-        '#link-url', 
+        '#link-url',
         '#quick-notes',
         '#task-note-content',
         '#new-issue-input',
@@ -5312,12 +5312,12 @@ document.addEventListener('DOMContentLoaded', () => {
         'input[type="text"]',
         'textarea'
     ];
-    
+
     inputSelectors.forEach(selector => {
         const elements = document.querySelectorAll(selector);
         elements.forEach(addClipboardSupport);
     });
-    
+
     // Add input formatting for credit card fields
     const formatCardNumber = (input) => {
         input.addEventListener('input', (e) => {
@@ -5332,7 +5332,7 @@ document.addEventListener('DOMContentLoaded', () => {
             e.target.value = formattedValue;
         });
     };
-    
+
     const formatExpiryDate = (input) => {
         input.addEventListener('input', (e) => {
             let value = e.target.value.replace(/\D/g, '');
@@ -5342,7 +5342,7 @@ document.addEventListener('DOMContentLoaded', () => {
             e.target.value = value;
         });
     };
-    
+
     // Also add paste support to dynamically created inputs
     const observer = new MutationObserver((mutations) => {
         mutations.forEach((mutation) => {
@@ -5374,7 +5374,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     });
-    
+
     observer.observe(document.body, { childList: true, subtree: true });
 });
 
@@ -5408,7 +5408,7 @@ function switchTab(tabName) {
     // Remove active class from all tabs and content
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-    
+
     // Add active class to selected tab and content
     event.target.classList.add('active');
     document.getElementById(`${tabName}-tab`).classList.add('active');
@@ -5417,37 +5417,37 @@ function switchTab(tabName) {
 function addTeamMember() {
     const nameInput = document.getElementById('new-member-name');
     const idInput = document.getElementById('new-member-id');
-    
+
     if (!nameInput || !idInput) {
         alert('Input fields not found');
         return;
     }
-    
+
     const name = nameInput.value.trim();
     const id = parseInt(idInput.value);
-    
+
     if (!name || name.length === 0) {
         alert('Please enter a name');
         return;
     }
-    
+
     if (!idInput.value || isNaN(id) || id <= 0) {
         alert('Please enter a valid ID (must be a positive number)');
         return;
     }
-    
+
     if (masterConsoleData.teamMembers.some(member => member.id === id)) {
         alert('ID already exists');
         return;
     }
-    
+
     masterConsoleData.teamMembers.push({ id: id, name: name });
-    
+
     nameInput.value = '';
     idInput.value = '';
     loadTeamMembersList();
     updateTaskProcessorDropdowns();
-    
+
     // Auto-save to Firebase after adding
     saveMasterConsoleData();
 }
@@ -5455,23 +5455,23 @@ function addTeamMember() {
 function addCompetency() {
     const name = document.getElementById('new-competency-name').value.trim();
     const id = parseInt(document.getElementById('new-competency-id').value);
-    
+
     if (!name || !id) {
         alert('Please enter both name and ID');
         return;
     }
-    
+
     if (masterConsoleData.competencies.some(comp => comp.id === id)) {
         alert('ID already exists');
         return;
     }
-    
+
     masterConsoleData.competencies.push({ id, name });
     document.getElementById('new-competency-name').value = '';
     document.getElementById('new-competency-id').value = '';
     loadCompetenciesList();
     updateTaskProcessorDropdowns();
-    
+
     // Auto-save to Firebase after adding
     saveMasterConsoleData();
 }
@@ -5479,23 +5479,23 @@ function addCompetency() {
 function addSprint() {
     const name = document.getElementById('new-sprint-name').value.trim();
     const id = parseInt(document.getElementById('new-sprint-id').value);
-    
+
     if (!name || !id) {
         alert('Please enter both name and ID');
         return;
     }
-    
+
     if (masterConsoleData.sprints.some(sprint => sprint.id === id)) {
         alert('ID already exists');
         return;
     }
-    
+
     masterConsoleData.sprints.push({ id, name });
     document.getElementById('new-sprint-name').value = '';
     document.getElementById('new-sprint-id').value = '';
     loadSprintsList();
     updateTaskProcessorDropdowns();
-    
+
     // Auto-save to Firebase after adding
     saveMasterConsoleData();
 }
@@ -5504,7 +5504,7 @@ function deleteTeamMember(id) {
     masterConsoleData.teamMembers = masterConsoleData.teamMembers.filter(member => member.id !== id);
     loadTeamMembersList();
     updateTaskProcessorDropdowns();
-    
+
     // Auto-save to Firebase after deleting
     saveMasterConsoleData();
 }
@@ -5513,7 +5513,7 @@ function deleteCompetency(id) {
     masterConsoleData.competencies = masterConsoleData.competencies.filter(comp => comp.id !== id);
     loadCompetenciesList();
     updateTaskProcessorDropdowns();
-    
+
     // Auto-save to Firebase after deleting
     saveMasterConsoleData();
 }
@@ -5522,7 +5522,7 @@ function deleteSprint(id) {
     masterConsoleData.sprints = masterConsoleData.sprints.filter(sprint => sprint.id !== id);
     loadSprintsList();
     updateTaskProcessorDropdowns();
-    
+
     // Auto-save to Firebase after deleting
     saveMasterConsoleData();
 }
@@ -5575,16 +5575,16 @@ function loadSprintsList() {
 async function saveMasterConsoleData() {
     console.log('saveMasterConsoleData called');
     console.log('Current masterConsoleData:', masterConsoleData);
-    
+
     try {
         // Save to localStorage as backup
         localStorage.setItem('masterConsoleData', JSON.stringify(masterConsoleData));
         console.log('Saved to localStorage');
-        
+
         // Save to Firebase
         await saveMasterDataToFirebase();
         console.log('Saved to Firebase successfully');
-        
+
         alert('Master console data saved successfully!');
     } catch (error) {
         console.error('Error saving master console data:', error);
@@ -5594,16 +5594,16 @@ async function saveMasterConsoleData() {
 
 async function saveMasterDataToFirebase() {
     console.log('saveMasterDataToFirebase called');
-    
+
     const currentUser = authSystem.currentUser;
     console.log('Current user:', currentUser);
-    
+
     if (!currentUser) {
         throw new Error('No authenticated user');
     }
-    
+
     const userId = currentUser.id;
-    
+
     // Save each data type separately
     await Promise.all([
         saveTeamMembersToFirebase(userId),
@@ -5616,7 +5616,7 @@ async function saveTeamMembersToFirebase(userId) {
     const url = `${FIREBASE_URL}/${userId}/master-console/masterConsoleData/teamMembers.json`;
     console.log('Saving team members to:', url);
     console.log('Team members data:', masterConsoleData.teamMembers);
-    
+
     try {
         const response = await fetch(url, {
             method: 'PUT',
@@ -5625,11 +5625,11 @@ async function saveTeamMembersToFirebase(userId) {
             },
             body: JSON.stringify(masterConsoleData.teamMembers || [])
         });
-        
+
         if (!response.ok) {
             throw new Error(`Failed to save team members: ${response.status}`);
         }
-        
+
         console.log('Team members saved successfully');
     } catch (error) {
         console.error('Error saving team members:', error);
@@ -5641,7 +5641,7 @@ async function saveCompetenciesToFirebase(userId) {
     const url = `${FIREBASE_URL}/${userId}/master-console/masterConsoleData/competencies.json`;
     console.log('Saving competencies to:', url);
     console.log('Competencies data:', masterConsoleData.competencies);
-    
+
     try {
         const response = await fetch(url, {
             method: 'PUT',
@@ -5650,11 +5650,11 @@ async function saveCompetenciesToFirebase(userId) {
             },
             body: JSON.stringify(masterConsoleData.competencies || [])
         });
-        
+
         if (!response.ok) {
             throw new Error(`Failed to save competencies: ${response.status}`);
         }
-        
+
         console.log('Competencies saved successfully');
     } catch (error) {
         console.error('Error saving competencies:', error);
@@ -5666,7 +5666,7 @@ async function saveSprintsToFirebase(userId) {
     const url = `${FIREBASE_URL}/${userId}/master-console/masterConsoleData/sprints.json`;
     console.log('Saving sprints to:', url);
     console.log('Sprints data:', masterConsoleData.sprints);
-    
+
     try {
         const response = await fetch(url, {
             method: 'PUT',
@@ -5675,11 +5675,11 @@ async function saveSprintsToFirebase(userId) {
             },
             body: JSON.stringify(masterConsoleData.sprints || [])
         });
-        
+
         if (!response.ok) {
             throw new Error(`Failed to save sprints: ${response.status}`);
         }
-        
+
         console.log('Sprints saved successfully');
     } catch (error) {
         console.error('Error saving sprints:', error);
@@ -5694,14 +5694,14 @@ async function loadMasterConsoleData() {
         await loadMasterDataFromFirebase();
     } catch (error) {
         console.log('Failed to load from Firebase, using localStorage backup:', error);
-        
+
         // Fallback to localStorage
         const saved = localStorage.getItem('masterConsoleData');
         if (saved) {
             masterConsoleData = JSON.parse(saved);
         }
     }
-    
+
     updateTaskProcessorDropdowns();
 }
 
@@ -5710,25 +5710,25 @@ async function loadMasterDataFromFirebase() {
     if (!currentUser) {
         throw new Error('No authenticated user');
     }
-    
+
     const userId = currentUser.id;
-    
+
     // Load each data type separately
     await Promise.all([
         loadTeamMembersFromFirebase(userId),
-        loadCompetenciesFromFirebase(userId), 
+        loadCompetenciesFromFirebase(userId),
         loadSprintsFromFirebase(userId)
     ]);
 }
 
 async function loadTeamMembersFromFirebase(userId) {
     const url = `${FIREBASE_URL}/${userId}/master-console/masterConsoleData/teamMembers.json`;
-    
+
     try {
         const response = await fetch(url, {
             method: 'GET'
         });
-        
+
         if (response.ok) {
             const data = await response.json();
             if (data) {
@@ -5747,12 +5747,12 @@ async function loadTeamMembersFromFirebase(userId) {
 
 async function loadCompetenciesFromFirebase(userId) {
     const url = `${FIREBASE_URL}/${userId}/master-console/masterConsoleData/competencies.json`;
-    
+
     try {
         const response = await fetch(url, {
             method: 'GET'
         });
-        
+
         if (response.ok) {
             const data = await response.json();
             if (data) {
@@ -5771,12 +5771,12 @@ async function loadCompetenciesFromFirebase(userId) {
 
 async function loadSprintsFromFirebase(userId) {
     const url = `${FIREBASE_URL}/${userId}/master-console/masterConsoleData/sprints.json`;
-    
+
     try {
         const response = await fetch(url, {
             method: 'GET'
         });
-        
+
         if (response.ok) {
             const data = await response.json();
             if (data) {
@@ -5803,10 +5803,10 @@ let isModalSession = false;
 async function openTasksModal() {
     document.getElementById('tasksModal').style.display = 'block';
     updateTaskProcessorDropdowns();
-    
+
     // Mark this as a fresh modal session
     isModalSession = true;
-    
+
     // Load budget data and existing unapproved tasks from Firebase only on fresh open
     await loadBudgetData();
     await loadUnapprovedTasks();
@@ -5823,9 +5823,9 @@ async function loadBudgetData() {
 
         const userId = currentUser.id;
         const url = `${FIREBASE_URL}/${userId}/budgets.json`;
-        
+
         const response = await fetch(url, { method: 'GET' });
-        
+
         if (response.ok) {
             const data = await response.json();
             if (data) {
@@ -5851,7 +5851,7 @@ async function saveBudgetData() {
 
         const userId = currentUser.id;
         const url = `${FIREBASE_URL}/${userId}/budgets.json`;
-        
+
         const response = await fetch(url, {
             method: 'PUT',
             headers: {
@@ -5863,9 +5863,9 @@ async function saveBudgetData() {
         if (!response.ok) {
             throw new Error(`Failed to save budget data: ${response.status}`);
         }
-        
+
         console.log('Budget data saved successfully');
-        
+
     } catch (error) {
         console.error('Error saving budget data:', error);
         throw error;
@@ -5876,54 +5876,54 @@ async function getBudgetDisplay(task, index) {
     if (!task.taskId) {
         return '<span style="color: #fbbf24;">No ID</span>';
     }
-    
+
     const budget = budgetData[task.taskId];
     if (!budget) {
         return '<span style="color: #fbbf24;">No Budget</span>';
     }
-    
+
     // Calculate current hours (sum of coding, testing, review hours converted to hours)
     const currentHours = ((task.codingHours || 0) + (task.testingHours || 0) + (task.reviewHours || 0)) / 60;
-    
+
     // Get past hours for this task ID from previously approved tasks
     const pastHours = await getPastHours(task.taskId);
     const totalCurrentHours = currentHours + pastHours;
-    
+
     const budgetHours = budget.total_budget || 0;
     const isOverBudget = totalCurrentHours > budgetHours;
-    
+
     const color = isOverBudget ? '#ef4444' : totalCurrentHours > budgetHours * 0.8 ? '#f59e0b' : '#22c55e';
-    
+
     return `<span style="color: ${color};">${totalCurrentHours.toFixed(1)}/${budgetHours}</span>`;
 }
 
 async function getPastHours(taskId) {
     if (!taskId) return 0;
-    
+
     try {
         const currentUser = authSystem.currentUser;
         if (!currentUser) return 0;
 
         const userId = currentUser.id;
         const url = `${FIREBASE_URL}/${userId}/processed-tasks.json`;
-        
+
         const response = await fetch(url, { method: 'GET' });
         if (!response.ok) return 0;
-        
+
         const data = await response.json();
         if (!data || !data.tasks) return 0;
-        
+
         // Find all approved tasks with the same task_id (extracted from task_name)
         const approvedTasksWithSameId = data.tasks.filter(task => {
             if (!task.is_approved) return false;
-            
+
             // Extract task ID from task name
             const taskIdMatch = task.task_name.match(/^(\d+)/);
             const extractedTaskId = taskIdMatch ? taskIdMatch[1] : '';
-            
+
             return extractedTaskId === taskId;
         });
-        
+
         // Sum up all hours from approved tasks with same ID
         const totalPastHours = approvedTasksWithSameId.reduce((total, task) => {
             const codingHrs = task.coding_hrs || 0;
@@ -5931,10 +5931,10 @@ async function getPastHours(taskId) {
             const reviewHrs = task.review_hrs || 0;
             return total + codingHrs + testingHrs + reviewHrs;
         }, 0);
-        
+
         console.log(`Found ${approvedTasksWithSameId.length} approved tasks for Task ID ${taskId} with total ${totalPastHours} hours`);
         return totalPastHours;
-        
+
     } catch (error) {
         console.error('Error calculating past hours:', error);
         return 0;
@@ -5952,18 +5952,18 @@ async function loadUnapprovedTasks() {
 
         const userId = currentUser.id;
         const url = `${FIREBASE_URL}/${userId}/processed-tasks.json`;
-        
+
         const response = await fetch(url, {
             method: 'GET'
         });
-        
+
         if (response.ok) {
             const data = await response.json();
             if (data && data.tasks) {
                 // Filter only unapproved tasks and convert them to extracted task format
                 const unapprovedTasks = data.tasks.filter(task => !task.is_approved);
                 console.log('Found unapproved tasks in Firebase:', unapprovedTasks.length);
-                
+
                 // Only load if this is a fresh modal session and extractedTasks is empty
                 if (isModalSession && extractedTasks.length === 0) {
                     console.log('Loading unapproved tasks into empty extractedTasks array (fresh session)');
@@ -5972,7 +5972,7 @@ async function loadUnapprovedTasks() {
                         // Extract task ID from task name if it follows the ID - Sprint - Description format
                         const taskIdMatch = task.task_name.match(/^(\d+)/);
                         const taskId = taskIdMatch ? taskIdMatch[1] : '';
-                        
+
                         return {
                             id: task.unique_id || task.task_id,
                             taskName: task.task_name,
@@ -5990,9 +5990,9 @@ async function loadUnapprovedTasks() {
                             originalData: { ...task, saved: true } // Mark as already saved since it came from Firebase
                         };
                     });
-                
+
                     console.log(`Loaded ${extractedTasks.length} unapproved tasks`);
-                
+
                     // Display the loaded tasks if any exist
                     if (extractedTasks.length > 0) {
                         await displayExtractedTasks();
@@ -6000,7 +6000,7 @@ async function loadUnapprovedTasks() {
                 } else {
                     console.log('Skipping load - either not fresh session or extractedTasks not empty');
                 }
-                
+
                 // Mark that we've processed the initial load
                 isModalSession = false;
             }
@@ -6014,8 +6014,8 @@ async function loadUnapprovedTasks() {
 
 function findTeamMemberIdByName(memberName) {
     if (!memberName || !masterConsoleData.teamMembers) return '';
-    
-    const member = masterConsoleData.teamMembers.find(m => 
+
+    const member = masterConsoleData.teamMembers.find(m =>
         m.name.toLowerCase() === memberName.toLowerCase()
     );
     return member ? member.id : '';
@@ -6030,7 +6030,7 @@ async function saveProcessedTasksToFirebase() {
 
         const userId = currentUser.id;
         const url = `${FIREBASE_URL}/${userId}/processed-tasks.json`;
-        
+
         // Get existing tasks first
         let existingTasks = [];
         try {
@@ -6044,20 +6044,20 @@ async function saveProcessedTasksToFirebase() {
         } catch (error) {
             console.log('No existing tasks found, starting fresh');
         }
-        
+
         // Convert newly processed tasks to Firebase format (unapproved)
         console.log('All extracted tasks:', extractedTasks);
         console.log('Tasks to filter:', extractedTasks.map(t => ({ taskName: t.taskName, hasOriginalData: !!t.originalData, isSaved: t.originalData?.saved })));
-        
+
         const newTasksToSave = extractedTasks
             .filter(task => {
                 // Check if task is already saved
                 const isSaved = task.originalData && task.originalData.saved;
                 // Check if task already exists in Firebase by task name
-                const existsInFirebase = existingTasks.some(existingTask => 
+                const existsInFirebase = existingTasks.some(existingTask =>
                     existingTask.task_name === task.taskName
                 );
-                
+
                 const shouldSave = !isSaved && !existsInFirebase;
                 console.log(`Task "${task.taskName}" - isSaved: ${isSaved}, existsInFirebase: ${existsInFirebase}, shouldSave: ${shouldSave}`);
                 return shouldSave;
@@ -6069,7 +6069,7 @@ async function saveProcessedTasksToFirebase() {
                     task_id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                     assigned_to: taskData.AssignedTo || '',
                     due_date: taskData.DueDate || '',
-                    sprint: taskData.Sprint || '',
+                    sprint: taskData.SprintID || '',
                     competency: taskData.CompetencyID || '',
                     coding_hrs: taskData.CodingHours || 0,
                     testing_hrs: taskData.TestingHours || 0,
@@ -6079,21 +6079,21 @@ async function saveProcessedTasksToFirebase() {
                     unique_id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
                 };
             });
-        
+
         if (newTasksToSave.length === 0) {
             console.log('No new tasks to save');
             return;
         }
-        
+
         // Add new tasks to existing ones
         const allTasks = [...existingTasks, ...newTasksToSave];
-        
+
         const finalData = {
             tasks: allTasks,
             lastUpdated: new Date().toISOString(),
             totalTasks: allTasks.length
         };
-        
+
         const response = await fetch(url, {
             method: 'PUT',
             headers: {
@@ -6101,13 +6101,13 @@ async function saveProcessedTasksToFirebase() {
             },
             body: JSON.stringify(finalData)
         });
-        
+
         if (!response.ok) {
             throw new Error(`Failed to save tasks: ${response.status}`);
         }
-        
+
         console.log(`Saved ${newTasksToSave.length} new processed tasks to Firebase`);
-        
+
         // Mark the tasks as having been saved
         extractedTasks.forEach(task => {
             if (!task.originalData) {
@@ -6116,7 +6116,7 @@ async function saveProcessedTasksToFirebase() {
                 task.originalData.saved = true;
             }
         });
-        
+
     } catch (error) {
         console.error('Error saving processed tasks:', error);
         // Don't show alert here as it's automatic save
@@ -6132,33 +6132,33 @@ async function updateTaskApprovalStatus(taskIndex, isApproved) {
 
         const userId = currentUser.id;
         const url = `${FIREBASE_URL}/${userId}/processed-tasks.json`;
-        
+
         // Get existing tasks
         const getResponse = await fetch(url, { method: 'GET' });
         if (!getResponse.ok) {
             throw new Error('Failed to load existing tasks');
         }
-        
+
         const existingData = await getResponse.json();
         if (!existingData || !existingData.tasks) {
             throw new Error('No existing tasks found');
         }
-        
+
         // Find the task to update using task name and other identifiers
         const taskToUpdate = extractedTasks[taskIndex];
-        const taskIndex_in_firebase = existingData.tasks.findIndex(task => 
-            task.task_name === taskToUpdate.taskName && 
+        const taskIndex_in_firebase = existingData.tasks.findIndex(task =>
+            task.task_name === taskToUpdate.taskName &&
             task.is_approved === false // Only update unapproved tasks
         );
-        
+
         if (taskIndex_in_firebase === -1) {
             throw new Error('Task not found in Firebase');
         }
-        
+
         // Update the approval status
         existingData.tasks[taskIndex_in_firebase].is_approved = isApproved;
         existingData.lastUpdated = new Date().toISOString();
-        
+
         // Save back to Firebase
         const response = await fetch(url, {
             method: 'PUT',
@@ -6167,13 +6167,13 @@ async function updateTaskApprovalStatus(taskIndex, isApproved) {
             },
             body: JSON.stringify(existingData)
         });
-        
+
         if (!response.ok) {
             throw new Error(`Failed to update task approval: ${response.status}`);
         }
-        
+
         console.log(`Updated approval status for task: ${taskToUpdate.taskName}`);
-        
+
     } catch (error) {
         console.error('Error updating task approval status:', error);
         throw error;
@@ -6192,7 +6192,7 @@ async function updateTaskInFirebase(taskIndex) {
         const userId = currentUser.id;
         const url = `${FIREBASE_URL}/${userId}/processed-tasks.json`;
         console.log('Firebase URL:', url);
-        
+
         // Get existing tasks
         console.log('Fetching existing tasks...');
         const getResponse = await fetch(url, { method: 'GET' });
@@ -6200,7 +6200,7 @@ async function updateTaskInFirebase(taskIndex) {
             console.log('No existing tasks to update, response not ok:', getResponse.status);
             throw new Error('Failed to fetch existing tasks');
         }
-        
+
         let existingData = await getResponse.json();
         if (!existingData || !existingData.tasks) {
             console.log('No existing tasks found, creating new structure');
@@ -6211,22 +6211,22 @@ async function updateTaskInFirebase(taskIndex) {
                 totalTasks: 0
             };
         }
-        
+
         console.log('Existing tasks count:', existingData.tasks.length);
-        
+
         // Find the task to update
         const taskToUpdate = extractedTasks[taskIndex];
         console.log('Looking for task to update:', taskToUpdate.taskName);
         console.log('Original task name from Firebase:', taskToUpdate.originalData?.task_name);
-        
+
         // Use original task name for matching if available, otherwise use current name
         const taskNameToMatch = taskToUpdate.originalData?.task_name || taskToUpdate.taskName;
-        const taskIndex_in_firebase = existingData.tasks.findIndex(task => 
+        const taskIndex_in_firebase = existingData.tasks.findIndex(task =>
             task.task_name === taskNameToMatch
         );
-        
+
         console.log(`Searching for task name "${taskNameToMatch}" in Firebase, found at index:`, taskIndex_in_firebase);
-        
+
         if (taskIndex_in_firebase === -1) {
             console.log('Task not found in Firebase, creating new task entry');
             // Create new task entry if not found
@@ -6251,7 +6251,7 @@ async function updateTaskInFirebase(taskIndex) {
             const taskData = generateTaskJSON(taskToUpdate);
             console.log('Generated task data for update:', taskData);
             console.log('Updating task_name from:', existingData.tasks[taskIndex_in_firebase].task_name, 'to:', taskData.TaskName);
-            
+
             existingData.tasks[taskIndex_in_firebase] = {
                 ...existingData.tasks[taskIndex_in_firebase], // Keep existing metadata
                 task_name: taskData.TaskName,
@@ -6265,9 +6265,9 @@ async function updateTaskInFirebase(taskIndex) {
                 // Keep the original approval status and timestamps
             };
         }
-        
+
         existingData.lastUpdated = new Date().toISOString();
-        
+
         // Save back to Firebase
         const response = await fetch(url, {
             method: 'PUT',
@@ -6276,14 +6276,14 @@ async function updateTaskInFirebase(taskIndex) {
             },
             body: JSON.stringify(existingData)
         });
-        
+
         if (response.ok) {
             console.log(`Successfully saved task update: ${taskToUpdate.taskName}`);
         } else {
             console.error('Failed to save task update, response not ok:', response.status);
             throw new Error(`Save failed with status: ${response.status}`);
         }
-        
+
     } catch (error) {
         console.error('Error saving task update:', error);
         throw error; // Re-throw so saveAllTasks can handle it
@@ -6298,25 +6298,25 @@ function updateTaskProcessorDropdowns() {
     if (!masterConsoleData.teamMembers) masterConsoleData.teamMembers = [];
     if (!masterConsoleData.competencies) masterConsoleData.competencies = [];
     if (!masterConsoleData.sprints) masterConsoleData.sprints = [];
-    
+
     // Update bulk dropdowns
     const bulkAssignedTo = document.getElementById('bulk-assigned-to');
     const bulkCompetency = document.getElementById('bulk-competency');
-    
+
     if (bulkAssignedTo) {
         bulkAssignedTo.innerHTML = `
             <option value="">Assigned To</option>
             ${masterConsoleData.teamMembers.map(member => `<option value="${member.id}">${member.name}</option>`).join('')}
         `;
     }
-    
+
     if (bulkCompetency) {
         bulkCompetency.innerHTML = `
             <option value="">Competency</option>
             ${masterConsoleData.competencies.map(comp => `<option value="${comp.id}">${comp.name}</option>`).join('')}
         `;
     }
-    
+
     // Update individual task dropdowns if table exists
     updateIndividualTaskDropdowns();
 }
@@ -6324,27 +6324,27 @@ function updateTaskProcessorDropdowns() {
 function updateIndividualTaskDropdowns() {
     const table = document.getElementById('tasks-table-body');
     if (!table) return;
-    
+
     // Update all select elements in the table
     const assigneeSelects = table.querySelectorAll('select[onchange*="assignedTo"]');
     assigneeSelects.forEach(select => {
         const currentValue = select.value;
         select.innerHTML = `
             <option value="">Select Assignee</option>
-            ${masterConsoleData.teamMembers.map(member => 
-                `<option value="${member.id}" ${currentValue == member.id ? 'selected' : ''}>${member.name}</option>`
-            ).join('')}
+            ${masterConsoleData.teamMembers.map(member =>
+            `<option value="${member.id}" ${currentValue == member.id ? 'selected' : ''}>${member.name}</option>`
+        ).join('')}
         `;
     });
-    
+
     const competencySelects = table.querySelectorAll('select[onchange*="competency"]');
     competencySelects.forEach(select => {
         const currentValue = select.value;
         select.innerHTML = `
             <option value="">Select Competency</option>
-            ${masterConsoleData.competencies.map(comp => 
-                `<option value="${comp.id}" ${currentValue == comp.id ? 'selected' : ''}>${comp.name}</option>`
-            ).join('')}
+            ${masterConsoleData.competencies.map(comp =>
+            `<option value="${comp.id}" ${currentValue == comp.id ? 'selected' : ''}>${comp.name}</option>`
+        ).join('')}
         `;
     });
 }
@@ -6365,18 +6365,18 @@ let currentTaskIndex = -1;
 function openTaskNameModal(taskIndex) {
     currentTaskIndex = taskIndex;
     const task = extractedTasks[taskIndex];
-    
+
     if (task) {
         // Use fullDescription if available, otherwise use taskName
         document.getElementById('taskNameText').value = task.fullDescription || task.taskName || '';
-        
+
         // Set task ID and budget
         document.getElementById('taskIdInput').value = task.taskId || '';
-        
+
         // Get current budget for this task ID
         const currentBudget = task.taskId && budgetData[task.taskId] ? budgetData[task.taskId].total_budget : '';
         document.getElementById('budgetHoursInput').value = currentBudget;
-        
+
         document.getElementById('taskNameModal').style.display = 'block';
     }
 }
@@ -6391,24 +6391,24 @@ async function saveTaskNameModal() {
         const newTaskName = document.getElementById('taskNameText').value;
         const taskId = document.getElementById('taskIdInput').value.trim();
         const budgetHours = parseFloat(document.getElementById('budgetHoursInput').value) || 0;
-        
+
         // Store the full text for description (will be used in JSON generation)
         extractedTasks[currentTaskIndex].fullDescription = newTaskName;
-        
+
         // Update the task name field to show only the first line
         const firstLine = newTaskName.split('\n')[0].trim();
         extractedTasks[currentTaskIndex].taskName = firstLine;
-        
+
         // Update task ID
         extractedTasks[currentTaskIndex].taskId = taskId;
-        
+
         // Save budget data if both task ID and budget are provided
         if (taskId && budgetHours > 0) {
             budgetData[taskId] = {
                 task_id: taskId,
                 total_budget: budgetHours
             };
-            
+
             try {
                 await saveBudgetData();
                 showNotification(`Budget saved: Task ${taskId} - ${budgetHours} hours`);
@@ -6417,10 +6417,10 @@ async function saveTaskNameModal() {
                 showNotification('Failed to save budget data');
             }
         }
-        
+
         // Refresh the table to show updated task name and budget
         await displayExtractedTasks();
-        
+
         closeTaskNameModal();
     }
 }
@@ -6447,17 +6447,17 @@ async function addManualTask() {
         testingHours: 0,
         reviewHours: 0
     };
-    
+
     // Add the empty task to the extracted tasks array
     extractedTasks.push(emptyTask);
-    
+
     // Show the results section if it's not already visible
     document.getElementById('tasks-results-section').style.display = 'block';
     document.getElementById('approve-all-btn').style.display = 'inline-flex';
-    
+
     // Re-render the task table with the new empty row
     await displayExtractedTasks();
-    
+
     // Save the new manual task to Firebase immediately (as unapproved)
     await saveProcessedTasksToFirebase();
 }
@@ -6476,7 +6476,7 @@ async function processTaskInput() {
     try {
         // Try to parse as JSON first
         let tasks = [];
-        
+
         if (inputText.startsWith('{') || inputText.startsWith('[')) {
             // JSON input
             const jsonData = JSON.parse(inputText);
@@ -6501,15 +6501,15 @@ async function processTaskInput() {
             }
             return extracted;
         });
-        
+
         // Append new tasks to existing tasks instead of replacing
         extractedTasks = [...extractedTasks, ...newTasks];
-        
+
         await displayExtractedTasks();
-        
+
         // Save newly processed tasks to Firebase immediately (as unapproved)
         await saveProcessedTasksToFirebase();
-        
+
     } catch (error) {
         console.error('Error processing task input:', error);
         alert('Error processing input. Please check the format and try again.');
@@ -6560,34 +6560,34 @@ function extractTaskDetails(task) {
     };
 
     // Handle both object and string inputs - preserve original case for task name extraction
-    const originalText = (typeof task === 'object') ? 
+    const originalText = (typeof task === 'object') ?
         (task.rawText || task.TaskName || task.MDDescription || task.Notes || '') :
         task.toString();
     const text = originalText.toLowerCase(); // Only use lowercase for pattern matching
-    
+
 
     // Extract task name and sprint from task number format - use original text to preserve case
     const taskNameMatch = originalText.match(/^(\d+)\s*-\s*([^-]+?)\s*-\s*(.+)$/m);
     if (taskNameMatch) {
         const [_, taskNumber, sprintName, taskDesc] = taskNameMatch;
         extracted.taskName = `${taskNumber} - ${sprintName.trim()} - ${taskDesc.trim()}`.trim();
-        
+
         // Store the task ID
         extracted.taskId = taskNumber.trim();
-        
+
         // Store the full original text as description
         extracted.fullDescription = originalText.trim();
-        
+
         // Store sprint name (will be converted to ID in JSON generation)
         const cleanSprintName = sprintName.trim();
         extracted.sprint = cleanSprintName;
     } else {
         // For tasks without ID-Sprint-Description format, use originalText since task object is empty
         const taskText = originalText;
-            
+
         // Remove coding/testing hours lines to get clean task description
         const cleanTaskText = taskText.replace(/\n?(?:coding|testing|review)\s*hrs?.*$/gim, '').trim();
-        
+
         // Check if there's a sprint mentioned in the task (could be extracted from object or text)
         let sprintName = '{Sprint}';
         if (typeof task === 'object' && (task.SprintID || task.TaskSprintID)) {
@@ -6595,20 +6595,20 @@ function extractTaskDetails(task) {
             // Capitalize first letter
             sprintName = sprintName.charAt(0).toUpperCase() + sprintName.slice(1);
         }
-        
+
         // If cleanTaskText is empty, use the original text up to the first newline
         const finalTaskText = cleanTaskText || taskText.split('\n')[0].trim();
-        
+
         // Format as {ID} - {Sprint} - Description
         extracted.taskName = `{ID} - ${sprintName} - ${finalTaskText}`;
-        
+
         // Store the full original text as description
         extracted.fullDescription = originalText.trim();
-        
+
         // Store sprint name (will be converted to ID in JSON generation)
         extracted.sprint = sprintName;
     }
-    
+
     // Auto-detect sprint from task name if not already set
     if (!extracted.sprint || extracted.sprint === '{Sprint}') {
         extracted.sprint = autoDetectSprint(extracted.taskName);
@@ -6629,15 +6629,15 @@ function extractTaskDetails(task) {
     function extractHours(text, category) {
         const pattern = new RegExp(`${category}\\s*(?:hrs?)?\\s*[:\\-]?\\s*(\\d+(?:\\.\\d+)?)`, 'i');
         const match = text.match(pattern);
-        
+
         if (!match) return 0;
 
         let value = parseFloat(match[1]);
-        
+
         // Check if it's in minutes
         const minPattern = new RegExp(`${category}.*(?:mins?|minutes?)`, 'i');
         const isInMinutes = minPattern.test(text);
-        
+
         // Convert if necessary - default is hours, convert minutes to hours
         if (isInMinutes) {
             value = value / 60;
@@ -6657,7 +6657,7 @@ function extractTaskDetails(task) {
         extracted.assignedTo = task.AssignedTo || task.AssignedBy || '';
         extracted.competency = task.CompetencyID || '';
         extracted.sprint = task.SprintID || task.TaskSprintID || extracted.sprint;
-        
+
         // If no hours were extracted from text, try object properties
         if (!extracted.codingHours && task.ExpectedHours) {
             extracted.codingHours = task.ExpectedHours * 60; // Convert to minutes
@@ -6671,32 +6671,32 @@ function autoDetectSprint(taskName) {
     if (!taskName || !masterConsoleData || !masterConsoleData.sprints) {
         return '';
     }
-    
+
     // Extract sprint from {ID} - {Sprint} - {Description} pattern
     const taskPattern = /^(\d+)\s*-\s*([^-]+?)\s*-\s*(.+)$/;
     const match = taskName.match(taskPattern);
-    
+
     if (!match) {
         return '';
     }
-    
+
     const extractedSprint = match[2].trim();
-    
+
     // Find exact matching sprint in dropdown options
     for (const sprint of masterConsoleData.sprints) {
         if (sprint.name.toLowerCase() === extractedSprint.toLowerCase()) {
             return sprint.name; // Return sprint name
         }
     }
-    
+
     // If no exact match, try partial matching
     for (const sprint of masterConsoleData.sprints) {
-        if (sprint.name.toLowerCase().includes(extractedSprint.toLowerCase()) || 
+        if (sprint.name.toLowerCase().includes(extractedSprint.toLowerCase()) ||
             extractedSprint.toLowerCase().includes(sprint.name.toLowerCase())) {
             return sprint.name;
         }
     }
-    
+
     return '';
 }
 
@@ -6728,9 +6728,9 @@ async function displayExtractedTasks() {
                 <select onchange="updateTaskField(${index}, 'assignedTo', this.value)" 
                         class="task-select-input" style="width: 110px;">
                     <option value="">Select Assignee</option>
-                    ${masterConsoleData.teamMembers.map(member => 
-                        `<option value="${member.id}" ${task.assignedTo == member.id ? 'selected' : ''}>${member.name}</option>`
-                    ).join('')}
+                    ${masterConsoleData.teamMembers.map(member =>
+        `<option value="${member.id}" ${task.assignedTo == member.id ? 'selected' : ''}>${member.name}</option>`
+    ).join('')}
                 </select>
             </td>
             <td>
@@ -6742,18 +6742,18 @@ async function displayExtractedTasks() {
                 <select onchange="updateTaskField(${index}, 'sprint', this.value)"
                         class="task-select-input" style="width: 100px;">
                     <option value="">Select Sprint</option>
-                    ${masterConsoleData.sprints.map(sprint => 
-                        `<option value="${sprint.name}" ${task.sprint === sprint.name ? 'selected' : ''}>${sprint.name}</option>`
-                    ).join('')}
+                    ${masterConsoleData.sprints.map(sprint =>
+        `<option value="${sprint.name}" ${task.sprint === sprint.name ? 'selected' : ''}>${sprint.name}</option>`
+    ).join('')}
                 </select>
             </td>
             <td>
                 <select onchange="updateTaskField(${index}, 'competency', this.value)"
                         class="task-select-input" style="width: 120px;">
                     <option value="">Select Competency</option>
-                    ${masterConsoleData.competencies.map(comp => 
-                        `<option value="${comp.id}" ${task.competency == comp.id ? 'selected' : ''}>${comp.name}</option>`
-                    ).join('')}
+                    ${masterConsoleData.competencies.map(comp =>
+        `<option value="${comp.id}" ${task.competency == comp.id ? 'selected' : ''}>${comp.name}</option>`
+    ).join('')}
                 </select>
             </td>
             <td>
@@ -6791,7 +6791,7 @@ async function displayExtractedTasks() {
             </td>
         </tr>
     `).join('');
-    
+
     // Update budget displays asynchronously
     await updateAllBudgetDisplays();
 }
@@ -6823,25 +6823,25 @@ async function updateTaskField(taskIndex, field, value) {
         } else if (field === 'taskName') {
             // Handle task name changes
             extractedTasks[taskIndex][field] = value;
-            
+
             // Update fullDescription to match if it was the same as taskName
-            if (!extractedTasks[taskIndex].fullDescription || 
+            if (!extractedTasks[taskIndex].fullDescription ||
                 extractedTasks[taskIndex].fullDescription === extractedTasks[taskIndex].taskName) {
                 extractedTasks[taskIndex].fullDescription = value;
             }
-            
+
             // Re-extract Task ID from new task name if it follows the ID - Sprint - Description format
             const taskNameMatch = value.match(/^(\d+)\s*-\s*([^-]+?)\s*-\s*(.+)$/);
             if (taskNameMatch) {
                 const [_, taskNumber] = taskNameMatch;
                 extractedTasks[taskIndex].taskId = taskNumber.trim();
             }
-            
+
             console.log(`Updated task name to: "${value}", extracted Task ID: ${extractedTasks[taskIndex].taskId}`);
         } else {
             extractedTasks[taskIndex][field] = value;
         }
-        
+
         // Update budget display if hours or task ID changed
         if (field.includes('Hours') || field === 'taskName') {
             // Update the specific budget display for this task
@@ -6855,7 +6855,7 @@ async function updateTaskField(taskIndex, field, value) {
                 }
             }
         }
-        
+
         // Remove auto-save since we have manual save button now
         // await updateTaskInFirebase(taskIndex);
     }
@@ -6874,15 +6874,15 @@ async function saveTask(taskIndex) {
 async function saveAllTasks() {
     try {
         console.log('Starting saveAllTasks, tasks count:', extractedTasks.length);
-        
+
         if (extractedTasks.length === 0) {
             showNotification('No tasks to save.');
             return;
         }
-        
+
         let savedCount = 0;
         let errorCount = 0;
-        
+
         for (let i = 0; i < extractedTasks.length; i++) {
             try {
                 console.log(`Saving task ${i + 1}: ${extractedTasks[i].taskName}`);
@@ -6894,15 +6894,15 @@ async function saveAllTasks() {
                 errorCount++;
             }
         }
-        
+
         console.log(`Save complete: ${savedCount} saved, ${errorCount} failed`);
-        
+
         if (errorCount === 0) {
             showNotification(`All ${savedCount} tasks saved successfully!`);
         } else {
             showNotification(`${savedCount} tasks saved, ${errorCount} failed. Check console for details.`);
         }
-        
+
     } catch (error) {
         console.error('Error in saveAllTasks:', error);
         showNotification('Failed to save tasks. Please try again.');
@@ -6918,32 +6918,32 @@ async function deleteTaskFromFirebase(taskToDelete) {
 
         const userId = currentUser.id;
         const url = `${FIREBASE_URL}/${userId}/processed-tasks.json`;
-        
+
         // Get existing tasks
         const getResponse = await fetch(url, { method: 'GET' });
         if (!getResponse.ok) {
             console.log('No existing tasks to delete from');
             return;
         }
-        
+
         const existingData = await getResponse.json();
         if (!existingData || !existingData.tasks) {
             console.log('No existing tasks found');
             return;
         }
-        
+
         // Find and remove the task by name
-        const updatedTasks = existingData.tasks.filter(task => 
+        const updatedTasks = existingData.tasks.filter(task =>
             task.task_name !== taskToDelete.taskName
         );
-        
+
         // Update Firebase with the filtered tasks
         const finalData = {
             tasks: updatedTasks,
             lastUpdated: new Date().toISOString(),
             totalTasks: updatedTasks.length
         };
-        
+
         const response = await fetch(url, {
             method: 'PUT',
             headers: {
@@ -6951,13 +6951,13 @@ async function deleteTaskFromFirebase(taskToDelete) {
             },
             body: JSON.stringify(finalData)
         });
-        
+
         if (!response.ok) {
             throw new Error(`Failed to delete task: ${response.status}`);
         }
-        
+
         console.log(`Deleted task "${taskToDelete.taskName}" from Firebase`);
-        
+
     } catch (error) {
         console.error('Error deleting task from Firebase:', error);
         throw error;
@@ -6969,24 +6969,24 @@ async function deleteTask(taskIndex) {
         const taskToDelete = extractedTasks[taskIndex];
         console.log('Deleting task:', taskToDelete.taskName);
         console.log('Task originalData:', taskToDelete.originalData);
-        
+
         try {
             // Always try to delete from Firebase (task might exist even if not marked as saved)
             console.log('Attempting to delete from Firebase...');
             await deleteTaskFromFirebase(taskToDelete);
             console.log('Successfully deleted from Firebase');
-            
+
             // Remove from local array
             extractedTasks.splice(taskIndex, 1);
             await displayExtractedTasks();
-            
+
             // Update task count and hide buttons if no tasks
             if (extractedTasks.length === 0) {
                 document.getElementById('tasks-results-section').style.display = 'none';
                 document.getElementById('approve-all-btn').style.display = 'none';
                 document.getElementById('save-all-btn').style.display = 'none';
             }
-            
+
             showNotification('Task deleted successfully!');
         } catch (error) {
             console.error('Error deleting task:', error);
@@ -6998,18 +6998,18 @@ async function deleteTask(taskIndex) {
 async function approveTask(taskIndex) {
     if (extractedTasks[taskIndex]) {
         const task = extractedTasks[taskIndex];
-        
+
         // Validate budget before approval
         if (!(await validateTaskForApproval(task))) {
             return; // Validation failed, don't approve
         }
-        
+
         task.approved = true;
         await displayExtractedTasks();
-        
+
         // Generate JSON for this specific task
         const approvedTask = generateTaskJSON(task);
-        
+
         try {
             // Update only the approval status in Firebase
             await updateTaskApprovalStatus(taskIndex, true);
@@ -7028,25 +7028,43 @@ async function validateTaskForApproval(task) {
         alert('Cannot approve task: Task ID is missing. Please set a Task ID in the task name popup.');
         return false;
     }
-    
+
+    // Check if Assigned To is selected
+    if (!task.assignedTo) {
+        alert('Cannot approve task: "Assigned To" is mandatory. Please select a team member.');
+        return false;
+    }
+
+    // Check if Competency is selected
+    if (!task.competency) {
+        alert('Cannot approve task: "Competency" is mandatory. Please select a competency.');
+        return false;
+    }
+
+    // Check if Sprint is selected
+    if (!task.sprint) {
+        alert('Cannot approve task: "Sprint" is mandatory. Please select a sprint.');
+        return false;
+    }
+
     // Check if budget exists for this task ID
     const budget = budgetData[task.taskId];
     if (!budget || !budget.total_budget) {
         alert(`Cannot approve task: No budget set for Task ID ${task.taskId}. Please set a budget in the task name popup.`);
         return false;
     }
-    
+
     // Calculate total hours (current + past)
     const currentHours = ((task.codingHours || 0) + (task.testingHours || 0) + (task.reviewHours || 0)) / 60;
     const pastHours = await getPastHours(task.taskId);
     const totalHours = currentHours + pastHours;
-    
+
     // Check if total hours exceed budget
     if (totalHours > budget.total_budget) {
         alert(`Cannot approve task: Total hours (${totalHours.toFixed(1)}) exceed budget (${budget.total_budget}). Please adjust hours or increase budget.`);
         return false;
     }
-    
+
     return true;
 }
 
@@ -7055,23 +7073,38 @@ async function validateTaskForApprovalSilent(task) {
     if (!task.taskId) {
         return false;
     }
-    
+
+    // Check if Assigned To is selected
+    if (!task.assignedTo) {
+        return false;
+    }
+
+    // Check if Competency is selected
+    if (!task.competency) {
+        return false;
+    }
+
+    // Check if Sprint is selected
+    if (!task.sprint) {
+        return false;
+    }
+
     // Check if budget exists for this task ID
     const budget = budgetData[task.taskId];
     if (!budget || !budget.total_budget) {
         return false;
     }
-    
+
     // Calculate total hours (current + past)
     const currentHours = ((task.codingHours || 0) + (task.testingHours || 0) + (task.reviewHours || 0)) / 60;
     const pastHours = await getPastHours(task.taskId);
     const totalHours = currentHours + pastHours;
-    
+
     // Check if total hours exceed budget
     if (totalHours > budget.total_budget) {
         return false;
     }
-    
+
     return true;
 }
 
@@ -7079,20 +7112,32 @@ async function getValidationError(task) {
     if (!task.taskId) {
         return 'Task ID is missing';
     }
-    
+
+    if (!task.assignedTo) {
+        return 'Assigned To is mandatory';
+    }
+
+    if (!task.competency) {
+        return 'Competency is mandatory';
+    }
+
+    if (!task.sprint) {
+        return 'Sprint is mandatory';
+    }
+
     const budget = budgetData[task.taskId];
     if (!budget || !budget.total_budget) {
         return `No budget set for Task ID ${task.taskId}`;
     }
-    
+
     const currentHours = ((task.codingHours || 0) + (task.testingHours || 0) + (task.reviewHours || 0)) / 60;
     const pastHours = await getPastHours(task.taskId);
     const totalHours = currentHours + pastHours;
-    
+
     if (totalHours > budget.total_budget) {
         return `Total hours (${totalHours.toFixed(1)}) exceed budget (${budget.total_budget})`;
     }
-    
+
     return '';
 }
 
@@ -7105,22 +7150,22 @@ async function approveAllTasks() {
             validationErrors.push(`Task ${i + 1}: ${await getValidationError(task)}`);
         }
     }
-    
+
     if (validationErrors.length > 0) {
         alert(`Cannot approve all tasks. Please fix the following issues:\n\n${validationErrors.join('\n')}`);
         return;
     }
-    
+
     extractedTasks.forEach(task => task.approved = true);
     await displayExtractedTasks();
-    
+
     // Generate JSON for all tasks
     const allTasksJSON = extractedTasks.map(task => generateTaskJSON(task));
-    
+
     try {
         // Save all tasks individually to database
         const results = await saveBulkTasksToDatabase(allTasksJSON);
-        
+
         if (results.failed.length === 0) {
             showTaskJSON(allTasksJSON, `All ${results.saved.length} Tasks Approved & Saved Individually`);
         } else {
@@ -7140,10 +7185,10 @@ async function saveIndividualTaskToDatabase(taskData, taskIndex = null) {
     if (!currentUser) {
         throw new Error('No authenticated user');
     }
-    
+
     const userId = currentUser.id;
     const url = `${FIREBASE_URL}/${userId}/processed-tasks.json`;
-    
+
     try {
         // First, try to get existing tasks
         let existingTasks = [];
@@ -7158,11 +7203,11 @@ async function saveIndividualTaskToDatabase(taskData, taskIndex = null) {
         } catch (e) {
             console.log('No existing tasks file, creating new one');
         }
-        
+
         // Extract task ID from task name if it contains an ID
         const taskIdMatch = taskData.TaskName?.match(/^(\d+)/);
         const extractedTaskId = taskIdMatch ? taskIdMatch[1] : null;
-        
+
         const taskDocument = {
             task_name: taskData.TaskName || 'Untitled Task',
             task_id: extractedTaskId,
@@ -7177,16 +7222,16 @@ async function saveIndividualTaskToDatabase(taskData, taskIndex = null) {
             created_at: new Date().toISOString(),
             unique_id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
         };
-        
+
         // Add the new task to existing tasks
         existingTasks.push(taskDocument);
-        
+
         const finalData = {
             tasks: existingTasks,
             lastUpdated: new Date().toISOString(),
             totalTasks: existingTasks.length
         };
-        
+
         const response = await fetch(url, {
             method: 'PUT',
             headers: {
@@ -7194,11 +7239,11 @@ async function saveIndividualTaskToDatabase(taskData, taskIndex = null) {
             },
             body: JSON.stringify(finalData)
         });
-        
+
         if (!response.ok) {
             throw new Error('Failed to save task to Realtime Database');
         }
-        
+
         console.log(`Task saved to Firebase Realtime Database successfully`);
         return taskDocument.unique_id;
     } catch (error) {
@@ -7210,7 +7255,7 @@ async function saveIndividualTaskToDatabase(taskData, taskIndex = null) {
 async function saveBulkTasksToDatabase(tasksData) {
     const savedTasks = [];
     const failedTasks = [];
-    
+
     for (let i = 0; i < tasksData.length; i++) {
         try {
             const taskId = await saveIndividualTaskToDatabase(tasksData[i], i);
@@ -7220,7 +7265,7 @@ async function saveBulkTasksToDatabase(tasksData) {
             failedTasks.push({ index: i, error: error.message });
         }
     }
-    
+
     return {
         saved: savedTasks,
         failed: failedTasks,
@@ -7233,15 +7278,15 @@ async function getProcessedTasksFromDatabase() {
     if (!currentUser) {
         throw new Error('No authenticated user');
     }
-    
+
     const userId = currentUser.id;
     const url = `${FIREBASE_URL}/${userId}/processed-tasks.json`;
-    
+
     try {
         const response = await fetch(url, {
             method: 'GET'
         });
-        
+
         if (response.ok) {
             const data = await response.json();
             console.log('Processed tasks retrieved from Firebase Realtime Database successfully');
@@ -7260,7 +7305,7 @@ async function listUserTasks() {
     if (!currentUser) {
         throw new Error('No authenticated user');
     }
-    
+
     try {
         // This would require Firebase Storage list API or Firestore for better querying
         // For now, we'll just note that tasks are stored individually
@@ -7277,38 +7322,35 @@ function generateTaskJSON(task) {
     const assignedMember = masterConsoleData.teamMembers.find(member => member.id == task.assignedTo);
     const assignedMemberName = assignedMember ? assignedMember.name : "";
     const assignedMemberID = assignedMember ? assignedMember.id : null;
-    
-    // Find sprint by name
+
+    // Find sprint by name and get ID
     const sprintData = masterConsoleData.sprints.find(sprint => sprint.name.toLowerCase() === task.sprint.toLowerCase());
-    const sprintName = sprintData ? sprintData.name : task.sprint;
-    
+    const sprintID = sprintData ? sprintData.id : "2370"; // Default sprint ID if not found
+
     // Convert minutes to hours for storage
     const codingHours = (task.codingHours / 60).toFixed(2);
     const testingHours = (task.testingHours / 60).toFixed(2);
     const reviewHours = (task.reviewHours / 60).toFixed(2);
-    
+
     // Prepare task name and description
     const fullText = task.fullDescription || task.taskName || '';
     const firstLine = fullText.split('\n')[0].trim();
     // Limit task name to 100 characters maximum
     const taskNameFirstLine = firstLine.length > 100 ? firstLine.substring(0, 100).trim() : firstLine;
-    
+
     // Remove hours lines from description (coding hrs, testing hrs, review hrs)
     const cleanDescription = fullText.replace(/\n?(?:coding|testing|review)\s*hrs?[:\-]*.*$/gim, '').trim();
     const fullDescription = cleanDescription.replace(/\n/g, '\\n'); // Convert newlines to \n for JSON
-    
+
     return {
-        "TaskName": taskNameFirstLine,
         "AssignedBy": "Harshavardhan Mandali",
-        "AssignedTo": assignedMemberName, 
+        "AssignedTo": assignedMemberName,
         "AssignedToEmpID": assignedMemberID,
-        "DueDate": task.dueDate,
-        "Sprint": sprintName,
+        "AssociatedTasks": "",
+        "Attachments": [],
         "CompetencyID": parseInt(task.competency) || null,
-        "CodingHours": parseFloat(codingHours),
-        "TestingHours": parseFloat(testingHours),
-        "ReviewHours": parseFloat(reviewHours),
-        "ExpectedHours": parseFloat(codingHours) + parseFloat(testingHours) + parseFloat(reviewHours),
+        "EmpID": 2754,
+        "ExpectedHours": (parseFloat(codingHours) + parseFloat(testingHours) + parseFloat(reviewHours)) * 60, // Convert total hours to minutes
         "GetUpdates": "0",
         "InformTo": "",
         "IsTaskEdited": false,
@@ -7318,7 +7360,7 @@ function generateTaskJSON(task) {
         "Notes": `<p>${fullDescription.replace(/\\n/g, '<br>')}</p>`,
         "OwnerID": "2754",
         "SendEmail": true,
-        "SprintID": task.sprint || "2370",
+        "SprintID": sprintID,
         "TaskBillingStatuses": [
             {
                 "BillingStatusID": 206,
@@ -7327,11 +7369,11 @@ function generateTaskJSON(task) {
                 "Color": "#0067a5",
                 "CompanyID": 0,
                 "CreatedOn": "0001-01-01 00:00:00",
-                "ModifiedOn": "0001-01-01 00:00:00", 
-                "ProjectID": 824,
+                "ModifiedOn": "0001-01-01 00:00:00",
+                "ProjectID": 480,
                 "IsActive": true,
                 "IsMandatory": true,
-                "expectedHours": task.codingHours,
+                "expectedHours": parseFloat(codingHours),
                 "showInput": false
             },
             {
@@ -7342,24 +7384,63 @@ function generateTaskJSON(task) {
                 "CompanyID": 0,
                 "CreatedOn": "0001-01-01 00:00:00",
                 "ModifiedOn": "0001-01-01 00:00:00",
-                "ProjectID": 824,
+                "ProjectID": 480,
                 "IsActive": true,
                 "IsMandatory": false,
-                "expectedHours": task.testingHours,
+                "expectedHours": parseFloat(testingHours),
+                "showInput": false
+            },
+            {
+                "BillingStatusID": 18685,
+                "BillingStatusName": "Miscellaneous",
+                "Color": "#8DB600",
+                "CompanyID": 0,
+                "CreatedOn": "0001-01-01 00:00:00",
+                "ModifiedOn": "0001-01-01 00:00:00",
+                "ProjectID": 480,
+                "IsActive": true,
+                "IsMandatory": false,
+                "expectedHours": 0,
+                "showInput": false
+            },
+            {
+                "BillingStatusID": 18683,
+                "BillingStatusName": "Support",
+                "Color": "#e68fac",
+                "CompanyID": 0,
+                "CreatedOn": "0001-01-01 00:00:00",
+                "ModifiedOn": "0001-01-01 00:00:00",
+                "ProjectID": 480,
+                "IsActive": true,
+                "IsMandatory": false,
+                "expectedHours": 0,
+                "showInput": false
+            },
+            {
+                "BillingStatusID": 18684,
+                "BillingStatusName": "Learning",
+                "Color": "#a1caf1",
+                "CompanyID": 0,
+                "CreatedOn": "0001-01-01 00:00:00",
+                "ModifiedOn": "0001-01-01 00:00:00",
+                "ProjectID": 480,
+                "IsActive": true,
+                "IsMandatory": false,
+                "expectedHours": 0,
                 "showInput": false
             },
             {
                 "BillingStatusID": 18682,
                 "BillingStatusName": "Review",
-                "Color": "#8DB600",
-                "StatusEfforts": task.reviewHours * 60,
+                "Color": "#be0032",
+                "StatusEfforts": task.reviewHours,
                 "CompanyID": 0,
                 "CreatedOn": "0001-01-01 00:00:00",
                 "ModifiedOn": "0001-01-01 00:00:00",
-                "ProjectID": 824,
+                "ProjectID": 480,
                 "IsActive": true,
                 "IsMandatory": false,
-                "expectedHours": task.reviewHours,
+                "expectedHours": parseFloat(reviewHours),
                 "showInput": false
             }
         ],
@@ -7367,9 +7448,10 @@ function generateTaskJSON(task) {
         "TaskDifficultyID": 2,
         "TaskDueDate": task.dueDate ? `${task.dueDate} 00:00:00` : "2025-07-31 00:00:00",
         "TaskID": "",
+        "TaskName": taskNameFirstLine,
         "TaskPriorityID": 2,
-        "TaskProjectID": 824,
-        "TaskProjectName": "THD - Support",
+        "TaskProjectID": 480,
+        "TaskProjectName": "THD - Talonpro",
         "TaskStatusID": 452,
         "TaskSprintID": "",
         "TaskWithMultipleCategories": [],
@@ -7380,15 +7462,18 @@ function generateTaskJSON(task) {
 }
 
 function showTaskJSON(jsonData, title) {
+    // Store the current JSON data for API submission
+    currentTaskJSON = jsonData;
+    
     // Create a modal or alert to show the JSON
     const jsonString = JSON.stringify(jsonData, null, 2);
-    
+
     // Create a temporary modal to show JSON
     const existingJsonModal = document.getElementById('json-output-modal');
     if (existingJsonModal) {
         existingJsonModal.remove();
     }
-    
+
     const jsonModal = document.createElement('div');
     jsonModal.id = 'json-output-modal';
     jsonModal.className = 'modal';
@@ -7408,14 +7493,147 @@ function showTaskJSON(jsonData, title) {
                 </div>
             </div>
             <div class="modal-actions">
+                <button class="modal-btn" onclick="submitTaskToPinestem()">📤 Submit to Pinestem API</button>
                 <button class="modal-btn cancel" onclick="document.getElementById('json-output-modal').remove()">
                     Close
                 </button>
             </div>
+            <div id="api-response-container" style="display: none; margin-top: 16px;">
+                <div id="api-response-content"></div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(jsonModal);
+}
+
+// Submit task to Pinestem API
+async function submitTaskToPinestem() {
+    if (!currentTaskJSON) {
+        showApiResponse('No task data available to submit.', 'error');
+        return;
+    }
+    
+    const submitBtn = document.querySelector('button[onclick="submitTaskToPinestem()"]');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = '⏳ Submitting...';
+    }
+    
+    try {
+        // Handle both single task and array of tasks
+        const tasksToSubmit = Array.isArray(currentTaskJSON) ? currentTaskJSON : [currentTaskJSON];
+        const results = [];
+        
+        for (const task of tasksToSubmit) {
+            try {
+                const response = await fetch('https://pinestem.com/api/Tasks/InsertTask', {
+                    method: 'POST',
+                    headers: {
+                        'CompanyID': '125',
+                        'Authorization': 'null',
+                        'AuthenticationToken': '672c1cde-988b-446a-8865-2dac82b38355',
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json, text/plain, */*',
+                        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
+                        'Referer': 'https://pinestem.com/dashboard.html'
+                    },
+                    body: JSON.stringify(task)
+                });
+                
+                const responseData = await response.json();
+                
+                results.push({
+                    task: task.TaskName || 'Unknown Task',
+                    success: response.ok,
+                    status: response.status,
+                    data: responseData
+                });
+                
+            } catch (error) {
+                results.push({
+                    task: task.TaskName || 'Unknown Task',
+                    success: false,
+                    error: error.message
+                });
+            }
+        }
+        
+        // Show results
+        const successCount = results.filter(r => r.success).length;
+        const failCount = results.length - successCount;
+        
+        if (failCount === 0) {
+            showApiResponse(`✅ Successfully submitted ${successCount} task(s) to Pinestem API!`, 'success', results);
+        } else if (successCount === 0) {
+            showApiResponse(`❌ Failed to submit all ${failCount} task(s) to Pinestem API.`, 'error', results);
+        } else {
+            showApiResponse(`✅ ${successCount} task(s) succeeded, ❌ ${failCount} task(s) failed.`, 'mixed', results);
+        }
+        
+    } catch (error) {
+        console.error('Error submitting to Pinestem API:', error);
+        showApiResponse(`❌ Error submitting to API: ${error.message}`, 'error');
+    } finally {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = '📤 Submit to Pinestem API';
+        }
+    }
+}
+
+// Show API response in the UI
+function showApiResponse(message, type, details = null) {
+    const container = document.getElementById('api-response-container');
+    const content = document.getElementById('api-response-content');
+    
+    if (!container || !content) return;
+    
+    let typeClass = '';
+    switch (type) {
+        case 'success': typeClass = 'api-response-success'; break;
+        case 'error': typeClass = 'api-response-error'; break;
+        case 'mixed': typeClass = 'api-response-mixed'; break;
+        default: typeClass = 'api-response-info';
+    }
+    
+    let detailsHtml = '';
+    if (details && Array.isArray(details)) {
+        detailsHtml = `
+            <div class="api-details" style="margin-top: 12px;">
+                <strong>Details:</strong>
+                <ul style="margin: 8px 0; padding-left: 20px;">
+                    ${details.map(result => `
+                        <li style="margin: 4px 0;">
+                            <strong>${result.task}:</strong> 
+                            ${result.success 
+                                ? `✅ Success (${result.status})` 
+                                : `❌ Failed - ${result.error || result.data?.message || 'Unknown error'}`
+                            }
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+        `;
+    }
+    
+    content.innerHTML = `
+        <div class="api-response ${typeClass}">
+            <div class="api-message">${message}</div>
+            ${detailsHtml}
         </div>
     `;
     
-    document.body.appendChild(jsonModal);
+    container.style.display = 'block';
+    
+    // Auto-hide after 10 seconds for success messages
+    if (type === 'success') {
+        setTimeout(() => {
+            if (container) {
+                container.style.display = 'none';
+            }
+        }, 10000);
+    }
 }
 
 function copyJSONToClipboard(jsonString) {
@@ -7430,7 +7648,7 @@ function copyJSONDirectly() {
     const jsonElement = document.getElementById('json-text-content');
     if (jsonElement) {
         const jsonText = jsonElement.textContent;
-        
+
         // Try using the modern clipboard API first
         if (navigator.clipboard) {
             navigator.clipboard.writeText(jsonText).then(() => {
@@ -7456,7 +7674,7 @@ function fallbackCopyText(text) {
     document.body.appendChild(textArea);
     textArea.focus();
     textArea.select();
-    
+
     try {
         document.execCommand('copy');
         showCopySuccess();
@@ -7464,7 +7682,7 @@ function fallbackCopyText(text) {
         console.error('Fallback copy failed:', err);
         alert('Copy failed. Please select the text manually and copy with Ctrl+C');
     }
-    
+
     document.body.removeChild(textArea);
 }
 
@@ -7475,7 +7693,7 @@ function showCopySuccess() {
         copyBtn.innerHTML = '✅ Copied!';
         copyBtn.style.background = 'rgba(34, 197, 94, 0.2)';
         copyBtn.style.borderColor = 'rgba(34, 197, 94, 0.3)';
-        
+
         setTimeout(() => {
             copyBtn.innerHTML = originalText;
             copyBtn.style.background = '';
@@ -7489,22 +7707,23 @@ let documentsData = {};
 let selectedFiles = [];
 let selectedFilesToAdd = [];
 let currentAddToFolderId = null;
+let currentTaskJSON = null; // Store current task JSON for API submission
 
 // Touch ID Authentication for Documents
 async function openDocumentsWithAuth() {
     try {
         // Require Touch ID authentication to access documents
         console.log('🔐 Requesting Touch ID authentication for document access...');
-        
+
         const authResult = await window.electronAPI.biometric.authenticate('Access Documents');
-        
+
         if (!authResult.success) {
             alert(`Authentication failed: ${authResult.error || 'Unknown error'}`);
             return;
         }
-        
+
         console.log('✅ Touch ID authentication successful');
-        
+
         // Authentication successful, open documents modal
         await openDocumentsModal();
     } catch (error) {
@@ -7532,9 +7751,9 @@ async function loadDocuments() {
 
         const userId = currentUser.id;
         const url = `${FIREBASE_URL}/${userId}/documents.json`;
-        
+
         const response = await fetch(url, { method: 'GET' });
-        
+
         if (response.ok) {
             const data = await response.json();
             if (data) {
@@ -7547,7 +7766,7 @@ async function loadDocuments() {
             console.log('No documents found, starting fresh');
             documentsData = {};
         }
-        
+
         displayDocuments();
     } catch (error) {
         console.error('Error loading documents:', error);
@@ -7559,17 +7778,17 @@ async function loadDocuments() {
 function displayDocuments() {
     const container = document.getElementById('documentsContainer');
     const searchTerm = document.getElementById('documentSearch').value.toLowerCase();
-    
+
     // Filter documents based on search term
     const filteredFolders = Object.keys(documentsData).filter(folderId => {
         const folder = documentsData[folderId];
         const folderMatches = folder.name.toLowerCase().includes(searchTerm);
-        const documentMatches = folder.documents.some(doc => 
+        const documentMatches = folder.documents.some(doc =>
             doc.name.toLowerCase().includes(searchTerm)
         );
         return folderMatches || documentMatches;
     });
-    
+
     if (filteredFolders.length === 0) {
         container.innerHTML = `
             <div class="empty-documents">
@@ -7580,13 +7799,13 @@ function displayDocuments() {
         `;
         return;
     }
-    
+
     container.innerHTML = filteredFolders.map(folderId => {
         const folder = documentsData[folderId];
         const documentsCount = folder.documents.length;
         const totalSize = folder.documents.reduce((sum, doc) => sum + (doc.size || 0), 0);
         const formattedSize = formatFileSize(totalSize);
-        
+
         return `
             <div class="folder-item">
                 <div class="folder-info">
@@ -7653,7 +7872,7 @@ function closeCreateFolderModal() {
 }
 
 // Handle file selection
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     const documentsInput = document.getElementById('documentsInput');
     if (documentsInput) {
         documentsInput.addEventListener('change', handleFileSelection);
@@ -7668,12 +7887,12 @@ function handleFileSelection(event) {
 
 function displaySelectedFiles() {
     const container = document.getElementById('selectedFiles');
-    
+
     if (selectedFiles.length === 0) {
         container.innerHTML = '';
         return;
     }
-    
+
     container.innerHTML = selectedFiles.map((file, index) => `
         <div class="selected-file">
             <div class="selected-file-info">
@@ -7693,22 +7912,22 @@ function removeSelectedFile(index) {
 
 async function saveFolderWithDocuments() {
     const folderName = document.getElementById('folderNameInput').value.trim();
-    
+
     if (!folderName) {
         alert('Please enter a folder name.');
         return;
     }
-    
+
     if (selectedFiles.length === 0) {
         alert('Please select at least one document.');
         return;
     }
-    
+
     try {
         // Create folder structure
         const folderId = `folder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const folderPath = `Documents/DashboardAttachments/${folderName}`;
-        
+
         // Save files to local disk and get their paths
         const documents = await Promise.all(selectedFiles.map(async (file) => {
             const savedFile = await saveDocumentFile(file, folderName);
@@ -7721,7 +7940,7 @@ async function saveFolderWithDocuments() {
                 uploadedAt: new Date().toISOString()
             };
         }));
-        
+
         // Create folder object
         const folderData = {
             id: folderId,
@@ -7731,19 +7950,19 @@ async function saveFolderWithDocuments() {
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
         };
-        
+
         // Add to documents data
         documentsData[folderId] = folderData;
-        
+
         // Save metadata to Firebase (paths only, no file data)
         await saveDocumentsToFirebase();
-        
+
         // Close modal and refresh display
         closeCreateFolderModal();
         displayDocuments();
-        
+
         showNotification(`Folder "${folderName}" created with ${documents.length} documents.`);
-        
+
     } catch (error) {
         console.error('Error saving folder:', error);
         alert('Failed to create folder. Please try again.');
@@ -7760,7 +7979,7 @@ async function saveDocumentsToFirebase() {
 
         const userId = currentUser.id;
         const url = `${FIREBASE_URL}/${userId}/documents.json`;
-        
+
         const response = await fetch(url, {
             method: 'PUT',
             headers: {
@@ -7768,13 +7987,13 @@ async function saveDocumentsToFirebase() {
             },
             body: JSON.stringify(documentsData)
         });
-        
+
         if (!response.ok) {
             throw new Error(`Failed to save documents: ${response.status}`);
         }
-        
+
         console.log('Documents saved to Firebase successfully');
-        
+
     } catch (error) {
         console.error('Error saving documents to Firebase:', error);
         throw error;
@@ -7788,17 +8007,17 @@ async function saveDocumentFile(file, folderName) {
         if (!dirResult.success) {
             throw new Error(dirResult.error);
         }
-        
+
         // Read file as buffer
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Array.from(new Uint8Array(arrayBuffer));
-        
+
         // Save file with unique timestamp name
         const result = await window.electronAPI.documents.saveFile(buffer, file.name, folderName);
         if (!result.success) {
             throw new Error(result.error);
         }
-        
+
         return {
             path: result.path,
             name: file.name,
@@ -7845,13 +8064,13 @@ function addDocumentsToFolder(folderId) {
         alert('Folder not found.');
         return;
     }
-    
+
     // Set current folder for adding documents
     currentAddToFolderId = folderId;
-    
+
     // Clear any previous selections
     selectedFilesToAdd = [];
-    
+
     // Pre-fill folder name (read-only)
     document.getElementById('addToFolderName').textContent = folder.name;
     document.getElementById('addSelectedFiles').innerHTML = '';
@@ -7873,12 +8092,12 @@ function handleAddFileSelection(event) {
 
 function displaySelectedFilesToAdd() {
     const container = document.getElementById('addSelectedFiles');
-    
+
     if (selectedFilesToAdd.length === 0) {
         container.innerHTML = '';
         return;
     }
-    
+
     container.innerHTML = selectedFilesToAdd.map((file, index) => `
         <div class="selected-file">
             <div class="selected-file-info">
@@ -7901,15 +8120,15 @@ async function addFilesToExistingFolder() {
         alert('No folder selected.');
         return;
     }
-    
+
     if (selectedFilesToAdd.length === 0) {
         alert('Please select at least one document.');
         return;
     }
-    
+
     try {
         const folder = documentsData[currentAddToFolderId];
-        
+
         // Save files to local disk and create document entries
         const newDocuments = await Promise.all(selectedFilesToAdd.map(async (file) => {
             const savedFile = await saveDocumentFile(file, folder.name);
@@ -7922,20 +8141,20 @@ async function addFilesToExistingFolder() {
                 uploadedAt: new Date().toISOString()
             };
         }));
-        
+
         // Add new documents to existing folder
         folder.documents = [...folder.documents, ...newDocuments];
         folder.updatedAt = new Date().toISOString();
-        
+
         // Save to Firebase
         await saveDocumentsToFirebase();
-        
+
         // Update display
         displayDocuments();
         closeAddDocumentsModal();
-        
+
         showNotification(`Added ${newDocuments.length} document(s) to folder "${folder.name}".`);
-        
+
     } catch (error) {
         console.error('Error adding files to folder:', error);
         alert('Failed to add files to folder. Please try again.');
@@ -7946,11 +8165,11 @@ async function addFilesToExistingFolder() {
 function handleAddDocumentsDrop(event) {
     event.preventDefault();
     event.stopPropagation();
-    
+
     const files = Array.from(event.dataTransfer.files);
     selectedFilesToAdd = [...selectedFilesToAdd, ...files];
     displaySelectedFilesToAdd();
-    
+
     // Remove drag over styling
     document.getElementById('addDocumentsDropZone').classList.remove('drag-over');
 }
@@ -7970,20 +8189,20 @@ function handleAddDocumentsDragLeave(event) {
 async function deleteFolder(folderId) {
     const folder = documentsData[folderId];
     if (!folder) return;
-    
+
     if (confirm(`Are you sure you want to delete folder "${folder.name}" and all its documents?`)) {
         try {
             // Delete from Firebase first
             delete documentsData[folderId];
             await saveDocumentsToFirebase();
-            
+
             // Delete local folder and all its contents
             const deleteResult = await window.electronAPI.documents.deleteFolder(folder.name);
             if (!deleteResult.success) {
                 console.error('Error deleting local folder:', deleteResult.error);
                 // Don't fail the operation, just log the error since Firebase deletion succeeded
             }
-            
+
             displayDocuments();
             showNotification(`Folder "${folder.name}" deleted successfully.`);
         } catch (error) {
