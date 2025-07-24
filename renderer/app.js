@@ -7483,3 +7483,512 @@ function showCopySuccess() {
         }, 2000);
     }
 }
+
+// Document Management System
+let documentsData = {};
+let selectedFiles = [];
+let selectedFilesToAdd = [];
+let currentAddToFolderId = null;
+
+// Touch ID Authentication for Documents
+async function openDocumentsWithAuth() {
+    try {
+        // Require Touch ID authentication to access documents
+        console.log('🔐 Requesting Touch ID authentication for document access...');
+        
+        const authResult = await window.electronAPI.biometric.authenticate('Access Documents');
+        
+        if (!authResult.success) {
+            alert(`Authentication failed: ${authResult.error || 'Unknown error'}`);
+            return;
+        }
+        
+        console.log('✅ Touch ID authentication successful');
+        
+        // Authentication successful, open documents modal
+        await openDocumentsModal();
+    } catch (error) {
+        console.error('Error accessing documents:', error);
+        alert('Failed to access documents. Please try again.');
+    }
+}
+
+async function openDocumentsModal() {
+    document.getElementById('documentsModal').style.display = 'block';
+    await loadDocuments();
+}
+
+function closeDocumentsModal() {
+    document.getElementById('documentsModal').style.display = 'none';
+}
+
+async function loadDocuments() {
+    try {
+        const currentUser = authSystem.currentUser;
+        if (!currentUser) {
+            showNotification('Please log in to access documents.');
+            return;
+        }
+
+        const userId = currentUser.id;
+        const url = `${FIREBASE_URL}/${userId}/documents.json`;
+        
+        const response = await fetch(url, { method: 'GET' });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data) {
+                documentsData = data;
+                console.log('Loaded documents data:', documentsData);
+            } else {
+                documentsData = {};
+            }
+        } else {
+            console.log('No documents found, starting fresh');
+            documentsData = {};
+        }
+        
+        displayDocuments();
+    } catch (error) {
+        console.error('Error loading documents:', error);
+        documentsData = {};
+        displayDocuments();
+    }
+}
+
+function displayDocuments() {
+    const container = document.getElementById('documentsContainer');
+    const searchTerm = document.getElementById('documentSearch').value.toLowerCase();
+    
+    // Filter documents based on search term
+    const filteredFolders = Object.keys(documentsData).filter(folderId => {
+        const folder = documentsData[folderId];
+        const folderMatches = folder.name.toLowerCase().includes(searchTerm);
+        const documentMatches = folder.documents.some(doc => 
+            doc.name.toLowerCase().includes(searchTerm)
+        );
+        return folderMatches || documentMatches;
+    });
+    
+    if (filteredFolders.length === 0) {
+        container.innerHTML = `
+            <div class="empty-documents">
+                <span class="empty-icon">📁</span>
+                <h3>No Documents Found</h3>
+                <p>Create your first folder to organize documents.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = filteredFolders.map(folderId => {
+        const folder = documentsData[folderId];
+        const documentsCount = folder.documents.length;
+        const totalSize = folder.documents.reduce((sum, doc) => sum + (doc.size || 0), 0);
+        const formattedSize = formatFileSize(totalSize);
+        
+        return `
+            <div class="folder-item">
+                <div class="folder-info">
+                    <span class="folder-icon">📁</span>
+                    <div class="folder-details">
+                        <div class="folder-name">${folder.name}</div>
+                        <div class="folder-meta">${documentsCount} documents • ${formattedSize} • Created ${formatDate(folder.createdAt)}</div>
+                    </div>
+                </div>
+                <div class="folder-actions">
+                    <button class="folder-action-btn" onclick="viewFolder('${folderId}')">View</button>
+                    <button class="folder-action-btn" onclick="addDocumentsToFolder('${folderId}')">Add</button>
+                    <button class="folder-action-btn danger" onclick="deleteFolder('${folderId}')">Delete</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function searchDocuments() {
+    displayDocuments();
+}
+
+function getDocumentIcon(filename) {
+    const extension = filename.split('.').pop().toLowerCase();
+    const iconMap = {
+        'pdf': '📕',
+        'doc': '📄',
+        'docx': '📄',
+        'txt': '📄',
+        'jpg': '🖼️',
+        'jpeg': '🖼️',
+        'png': '🖼️',
+        'gif': '🖼️'
+    };
+    return iconMap[extension] || '📄';
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString();
+}
+
+// Create New Folder Functions
+function createNewFolder() {
+    selectedFiles = [];
+    document.getElementById('folderNameInput').value = '';
+    document.getElementById('documentsInput').value = '';
+    document.getElementById('selectedFiles').innerHTML = '';
+    document.getElementById('createFolderModal').style.display = 'block';
+}
+
+function closeCreateFolderModal() {
+    document.getElementById('createFolderModal').style.display = 'none';
+    selectedFiles = [];
+}
+
+// Handle file selection
+document.addEventListener('DOMContentLoaded', function() {
+    const documentsInput = document.getElementById('documentsInput');
+    if (documentsInput) {
+        documentsInput.addEventListener('change', handleFileSelection);
+    }
+});
+
+function handleFileSelection(event) {
+    const files = Array.from(event.target.files);
+    selectedFiles = [...selectedFiles, ...files];
+    displaySelectedFiles();
+}
+
+function displaySelectedFiles() {
+    const container = document.getElementById('selectedFiles');
+    
+    if (selectedFiles.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    container.innerHTML = selectedFiles.map((file, index) => `
+        <div class="selected-file">
+            <div class="selected-file-info">
+                <span class="document-icon">${getDocumentIcon(file.name)}</span>
+                <span class="selected-file-name">${file.name}</span>
+                <span class="selected-file-size">${formatFileSize(file.size)}</span>
+            </div>
+            <button class="remove-file-btn" onclick="removeSelectedFile(${index})">Remove</button>
+        </div>
+    `).join('');
+}
+
+function removeSelectedFile(index) {
+    selectedFiles.splice(index, 1);
+    displaySelectedFiles();
+}
+
+async function saveFolderWithDocuments() {
+    const folderName = document.getElementById('folderNameInput').value.trim();
+    
+    if (!folderName) {
+        alert('Please enter a folder name.');
+        return;
+    }
+    
+    if (selectedFiles.length === 0) {
+        alert('Please select at least one document.');
+        return;
+    }
+    
+    try {
+        // Create folder structure
+        const folderId = `folder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const folderPath = `Documents/DashboardAttachments/${folderName}`;
+        
+        // Save files to local disk and get their paths
+        const documents = await Promise.all(selectedFiles.map(async (file) => {
+            const savedFile = await saveDocumentFile(file, folderName);
+            return {
+                id: `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                name: file.name,
+                size: file.size,
+                type: file.type,
+                localPath: savedFile.path, // Local file system path
+                uploadedAt: new Date().toISOString()
+            };
+        }));
+        
+        // Create folder object
+        const folderData = {
+            id: folderId,
+            name: folderName,
+            path: folderPath,
+            documents: documents,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+        };
+        
+        // Add to documents data
+        documentsData[folderId] = folderData;
+        
+        // Save metadata to Firebase (paths only, no file data)
+        await saveDocumentsToFirebase();
+        
+        // Close modal and refresh display
+        closeCreateFolderModal();
+        displayDocuments();
+        
+        showNotification(`Folder "${folderName}" created with ${documents.length} documents.`);
+        
+    } catch (error) {
+        console.error('Error saving folder:', error);
+        alert('Failed to create folder. Please try again.');
+    }
+}
+
+
+async function saveDocumentsToFirebase() {
+    try {
+        const currentUser = authSystem.currentUser;
+        if (!currentUser) {
+            throw new Error('No authenticated user');
+        }
+
+        const userId = currentUser.id;
+        const url = `${FIREBASE_URL}/${userId}/documents.json`;
+        
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(documentsData)
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Failed to save documents: ${response.status}`);
+        }
+        
+        console.log('Documents saved to Firebase successfully');
+        
+    } catch (error) {
+        console.error('Error saving documents to Firebase:', error);
+        throw error;
+    }
+}
+
+async function saveDocumentFile(file, folderName) {
+    try {
+        // Ensure document directory exists
+        const dirResult = await window.electronAPI.documents.createDocumentDir(folderName);
+        if (!dirResult.success) {
+            throw new Error(dirResult.error);
+        }
+        
+        // Read file as buffer
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Array.from(new Uint8Array(arrayBuffer));
+        
+        // Save file with unique timestamp name
+        const result = await window.electronAPI.documents.saveFile(buffer, file.name, folderName);
+        if (!result.success) {
+            throw new Error(result.error);
+        }
+        
+        return {
+            path: result.path,
+            name: file.name,
+            size: file.size
+        };
+    } catch (error) {
+        console.error('Error saving document file:', error);
+        throw error;
+    }
+}
+
+// Folder management functions
+async function viewFolder(folderId) {
+    const folder = documentsData[folderId];
+    if (folder) {
+        try {
+            const result = await window.electronAPI.documents.openFolder(folder.name);
+            if (!result.success) {
+                throw new Error(result.error);
+            }
+        } catch (error) {
+            console.error('Error opening folder:', error);
+            showNotification(`Error opening folder: ${folder.name}`);
+        }
+    }
+}
+
+// Open individual document with default application
+async function openDocument(localPath) {
+    try {
+        const result = await window.electronAPI.documents.openFile(localPath);
+        if (!result.success) {
+            throw new Error(result.error);
+        }
+    } catch (error) {
+        console.error('Error opening document:', error);
+        showNotification(`Error opening document: ${error.message}`);
+    }
+}
+
+function addDocumentsToFolder(folderId) {
+    const folder = documentsData[folderId];
+    if (!folder) {
+        alert('Folder not found.');
+        return;
+    }
+    
+    // Set current folder for adding documents
+    currentAddToFolderId = folderId;
+    
+    // Clear any previous selections
+    selectedFilesToAdd = [];
+    
+    // Pre-fill folder name (read-only)
+    document.getElementById('addToFolderName').textContent = folder.name;
+    document.getElementById('addSelectedFiles').innerHTML = '';
+    document.getElementById('addDocumentsModal').style.display = 'block';
+}
+
+function closeAddDocumentsModal() {
+    document.getElementById('addDocumentsModal').style.display = 'none';
+    selectedFilesToAdd = [];
+    currentAddToFolderId = null;
+}
+
+// Handle file selection for adding to existing folder
+function handleAddFileSelection(event) {
+    const files = Array.from(event.target.files);
+    selectedFilesToAdd = [...selectedFilesToAdd, ...files];
+    displaySelectedFilesToAdd();
+}
+
+function displaySelectedFilesToAdd() {
+    const container = document.getElementById('addSelectedFiles');
+    
+    if (selectedFilesToAdd.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    container.innerHTML = selectedFilesToAdd.map((file, index) => `
+        <div class="selected-file">
+            <div class="selected-file-info">
+                <span class="document-icon">${getDocumentIcon(file.name)}</span>
+                <span class="selected-file-name">${file.name}</span>
+                <span class="selected-file-size">${formatFileSize(file.size)}</span>
+            </div>
+            <button class="remove-file-btn" onclick="removeSelectedFileToAdd(${index})">Remove</button>
+        </div>
+    `).join('');
+}
+
+function removeSelectedFileToAdd(index) {
+    selectedFilesToAdd.splice(index, 1);
+    displaySelectedFilesToAdd();
+}
+
+async function addFilesToExistingFolder() {
+    if (!currentAddToFolderId) {
+        alert('No folder selected.');
+        return;
+    }
+    
+    if (selectedFilesToAdd.length === 0) {
+        alert('Please select at least one document.');
+        return;
+    }
+    
+    try {
+        const folder = documentsData[currentAddToFolderId];
+        
+        // Save files to local disk and create document entries
+        const newDocuments = await Promise.all(selectedFilesToAdd.map(async (file) => {
+            const savedFile = await saveDocumentFile(file, folder.name);
+            return {
+                id: `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                name: file.name,
+                size: file.size,
+                type: file.type,
+                localPath: savedFile.path,
+                uploadedAt: new Date().toISOString()
+            };
+        }));
+        
+        // Add new documents to existing folder
+        folder.documents = [...folder.documents, ...newDocuments];
+        folder.updatedAt = new Date().toISOString();
+        
+        // Save to Firebase
+        await saveDocumentsToFirebase();
+        
+        // Update display
+        displayDocuments();
+        closeAddDocumentsModal();
+        
+        showNotification(`Added ${newDocuments.length} document(s) to folder "${folder.name}".`);
+        
+    } catch (error) {
+        console.error('Error adding files to folder:', error);
+        alert('Failed to add files to folder. Please try again.');
+    }
+}
+
+// Drag and drop handlers for add documents
+function handleAddDocumentsDrop(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    const files = Array.from(event.dataTransfer.files);
+    selectedFilesToAdd = [...selectedFilesToAdd, ...files];
+    displaySelectedFilesToAdd();
+    
+    // Remove drag over styling
+    document.getElementById('addDocumentsDropZone').classList.remove('drag-over');
+}
+
+function handleAddDocumentsDragOver(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    document.getElementById('addDocumentsDropZone').classList.add('drag-over');
+}
+
+function handleAddDocumentsDragLeave(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    document.getElementById('addDocumentsDropZone').classList.remove('drag-over');
+}
+
+async function deleteFolder(folderId) {
+    const folder = documentsData[folderId];
+    if (!folder) return;
+    
+    if (confirm(`Are you sure you want to delete folder "${folder.name}" and all its documents?`)) {
+        try {
+            // Delete from Firebase first
+            delete documentsData[folderId];
+            await saveDocumentsToFirebase();
+            
+            // Delete local folder and all its contents
+            const deleteResult = await window.electronAPI.documents.deleteFolder(folder.name);
+            if (!deleteResult.success) {
+                console.error('Error deleting local folder:', deleteResult.error);
+                // Don't fail the operation, just log the error since Firebase deletion succeeded
+            }
+            
+            displayDocuments();
+            showNotification(`Folder "${folder.name}" deleted successfully.`);
+        } catch (error) {
+            console.error('Error deleting folder:', error);
+            alert('Failed to delete folder. Please try again.');
+        }
+    }
+}

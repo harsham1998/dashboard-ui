@@ -624,6 +624,63 @@ ipcMain.handle('openFile', async (event, filePath) => {
   }
 });
 
+// Document management handlers
+ipcMain.handle('createDocumentDir', async (event, folderName) => {
+  try {
+    const documentDir = path.join(os.homedir(), 'Documents', 'DashboardAttachments', folderName);
+    await fs.mkdir(documentDir, { recursive: true });
+    return { success: true, path: documentDir };
+  } catch (error) {
+    console.error('Error creating document directory:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('saveDocumentFile', async (event, buffer, filename, folderName) => {
+  try {
+    const documentDir = path.join(os.homedir(), 'Documents', 'DashboardAttachments', folderName);
+    await fs.mkdir(documentDir, { recursive: true });
+    
+    // Create unique filename with timestamp
+    const timestamp = Date.now();
+    const ext = path.extname(filename);
+    const name = path.basename(filename, ext);
+    const uniqueFilename = `${timestamp}_${name}${ext}`;
+    const filePath = path.join(documentDir, uniqueFilename);
+    
+    // Convert buffer back to Uint8Array if needed
+    const fileBuffer = Buffer.from(buffer);
+    await fs.writeFile(filePath, fileBuffer);
+    
+    return { success: true, path: filePath, filename: uniqueFilename };
+  } catch (error) {
+    console.error('Error saving document file:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('openDocumentFolder', async (event, folderName) => {
+  try {
+    const documentDir = path.join(os.homedir(), 'Documents', 'DashboardAttachments', folderName);
+    await shell.openPath(documentDir);
+    return { success: true };
+  } catch (error) {
+    console.error('Error opening document folder:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('deleteDocumentFolder', async (event, folderName) => {
+  try {
+    const documentDir = path.join(os.homedir(), 'Documents', 'DashboardAttachments', folderName);
+    await fs.rm(documentDir, { recursive: true, force: true });
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting document folder:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // Siri integration handlers
 ipcMain.handle('siri-register-shortcuts', async () => {
   if (process.platform !== 'darwin') {

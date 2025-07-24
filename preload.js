@@ -63,6 +63,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     createAttachmentsDir: () => ipcRenderer.invoke('createAttachmentsDir'),
     saveFile: (buffer, filename) => ipcRenderer.invoke('saveFile', buffer, filename),
     openFile: (filePath) => ipcRenderer.invoke('openFile', filePath)
+  },
+
+  documents: {
+    createDocumentDir: (folderName) => ipcRenderer.invoke('createDocumentDir', folderName),
+    saveFile: (buffer, filename, folderName) => ipcRenderer.invoke('saveDocumentFile', buffer, filename, folderName),
+    openFile: (filePath) => ipcRenderer.invoke('openFile', filePath),
+    openFolder: (folderName) => ipcRenderer.invoke('openDocumentFolder', folderName),
+    deleteFolder: (folderName) => ipcRenderer.invoke('deleteDocumentFolder', folderName)
   }
 });
 
