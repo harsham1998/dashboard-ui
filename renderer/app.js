@@ -6075,7 +6075,7 @@ async function saveProcessedTasksToFirebase() {
                     task_id: task.taskId || '', // Use extracted task ID from task name or popup
                     assigned_to: taskData.AssignedTo || '',
                     due_date: taskData.TaskDueDate || '',
-                    sprint: taskData.SprintID || '',
+                    sprint: task.sprint || '',
                     competency: taskData.CompetencyID || '',
                     coding_hrs: codingStatus ? codingStatus.expectedHours : 0,
                     testing_hrs: testingStatus ? testingStatus.expectedHours : 0,
@@ -6229,52 +6229,127 @@ async function updateTaskInFirebase(taskIndex) {
         console.log('Looking for task to update:', taskToUpdate.taskName);
         console.log('Original task name from Firebase:', taskToUpdate.originalData?.task_name);
 
-        // Use original task name for matching if available, otherwise use current name
-        const taskNameToMatch = taskToUpdate.originalData?.task_name || taskToUpdate.taskName;
-        const taskIndex_in_firebase = existingData.tasks.findIndex(task =>
-            task && task.task_name === taskNameToMatch
-        );
+        // Create stable composite key for task matching
+        const createStableKey = (taskId, taskName) => {
+            // Use task_id if available, otherwise fall back to task_name
+            const id = (taskId || '').toString().trim();
+            const name = (taskName || '').toString().trim();
+            return id ? `${id}_${name}` : name;
+        };
+        
+        const currentStableKey = createStableKey(taskToUpdate.taskId, taskToUpdate.taskName);
+        const originalStableKey = taskToUpdate.originalData ? 
+            createStableKey(taskToUpdate.originalData.task_id, taskToUpdate.originalData.task_name) : '';
+        
+        // Try multiple matching strategies to avoid duplicates
+        let taskIndex_in_firebase = -1;
+        let matchStrategy = '';
+        
+        // Strategy 1: Match by stable composite key (current)
+        if (currentStableKey) {
+            taskIndex_in_firebase = existingData.tasks.findIndex(task => {
+                if (!task) return false;
+                const existingKey = createStableKey(task.task_id, task.task_name);
+                return existingKey === currentStableKey;
+            });
+            matchStrategy = 'current_stable_key';
+        }
+        
+        // Strategy 2: Match by original stable key if current didn't work
+        if (taskIndex_in_firebase === -1 && originalStableKey && originalStableKey !== currentStableKey) {
+            taskIndex_in_firebase = existingData.tasks.findIndex(task => {
+                if (!task) return false;
+                const existingKey = createStableKey(task.task_id, task.task_name);
+                return existingKey === originalStableKey;
+            });
+            matchStrategy = 'original_stable_key';
+        }
+        
+        // Strategy 3: Match by unique_id as fallback (if available and no stable match found)
+        if (taskIndex_in_firebase === -1 && taskToUpdate.originalData?.unique_id) {
+            taskIndex_in_firebase = existingData.tasks.findIndex(task =>
+                task && task.unique_id === taskToUpdate.originalData.unique_id
+            );
+            matchStrategy = 'unique_id_fallback';
+        }
 
-        console.log(`Searching for task name "${taskNameToMatch}" in Firebase, found at index:`, taskIndex_in_firebase);
+        console.log(`Searching for task "${taskToUpdate.taskName}" using strategy "${matchStrategy}", found at index:`, taskIndex_in_firebase);
+        console.log('Current stable key:', currentStableKey);
+        console.log('Original stable key:', originalStableKey);
+        console.log('Task originalData:', taskToUpdate.originalData);
 
         if (taskIndex_in_firebase === -1) {
             console.log('Task not found in Firebase, creating new task entry');
+            
+            // Double-check: prevent duplicates by checking if a task with the same stable key already exists
+            const duplicateCheck = existingData.tasks.find(task => {
+                if (!task) return false;
+                const existingKey = createStableKey(task.task_id, task.task_name);
+                return existingKey === currentStableKey;
+            });
+            
+            if (duplicateCheck) {
+                console.log('Warning: Task with same stable key already exists in Firebase. Skipping to prevent duplicate.');
+                console.log('Duplicate found:', duplicateCheck);
+                return;
+            }
+            
             // Create new task entry if not found
             const taskData = generateTaskJSON(taskToUpdate);
+            // Extract hours from TaskBillingStatuses
+            const codingStatus = taskData.TaskBillingStatuses.find(status => status.BillingStatusName === 'Coding');
+            const testingStatus = taskData.TaskBillingStatuses.find(status => status.BillingStatusName === 'Testing');
+            const reviewStatus = taskData.TaskBillingStatuses.find(status => status.BillingStatusName === 'Review');
+            
+            const newUniqueId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             const newTask = {
                 task_name: taskData.TaskName,
                 task_id: taskToUpdate.taskId || '', // Use extracted task ID from task name or popup
                 assigned_to: taskData.AssignedTo || '',
                 due_date: taskData.TaskDueDate || '',
-                sprint: taskData.SprintID || '',
+                sprint: taskToUpdate.sprint || '',
                 competency: taskData.CompetencyID || '',
-                coding_hrs: taskData.CodingHours || 0,
-                testing_hrs: taskData.TestingHours || 0,
-                review_hrs: taskData.ReviewHours || 0,
+                coding_hrs: codingStatus ? codingStatus.expectedHours : 0,
+                testing_hrs: testingStatus ? testingStatus.expectedHours : 0,
+                review_hrs: reviewStatus ? reviewStatus.expectedHours : 0,
                 is_approved: false,
                 created_at: new Date().toISOString(),
-                unique_id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}` // Keep unique_id for database tracking
+                unique_id: newUniqueId // Keep unique_id for database tracking
             };
             existingData.tasks.push(newTask);
+            
+            // Update the originalData to reflect the saved state
+            taskToUpdate.originalData = { ...newTask };
+            console.log('Created new task with unique_id:', newUniqueId);
         } else {
             // Update the task data
             const taskData = generateTaskJSON(taskToUpdate);
             console.log('Generated task data for update:', taskData);
             console.log('Updating task_name from:', existingData.tasks[taskIndex_in_firebase].task_name, 'to:', taskData.TaskName);
 
-            existingData.tasks[taskIndex_in_firebase] = {
+            // Extract hours from TaskBillingStatuses
+            const codingStatus = taskData.TaskBillingStatuses.find(status => status.BillingStatusName === 'Coding');
+            const testingStatus = taskData.TaskBillingStatuses.find(status => status.BillingStatusName === 'Testing');
+            const reviewStatus = taskData.TaskBillingStatuses.find(status => status.BillingStatusName === 'Review');
+            
+            const updatedTask = {
                 ...existingData.tasks[taskIndex_in_firebase], // Keep existing metadata
                 task_name: taskData.TaskName,
                 task_id: taskToUpdate.taskId || existingData.tasks[taskIndex_in_firebase].task_id || '', // Use extracted task ID or keep existing
                 assigned_to: taskData.AssignedTo || '',
                 due_date: taskData.TaskDueDate || '',
-                sprint: taskData.SprintID || '',
+                sprint: taskToUpdate.sprint || '',
                 competency: taskData.CompetencyID || '',
-                coding_hrs: taskData.CodingHours || 0,
-                testing_hrs: taskData.TestingHours || 0,
-                review_hrs: taskData.ReviewHours || 0,
+                coding_hrs: codingStatus ? codingStatus.expectedHours : 0,
+                testing_hrs: testingStatus ? testingStatus.expectedHours : 0,
+                review_hrs: reviewStatus ? reviewStatus.expectedHours : 0,
                 // Keep the original approval status and timestamps
             };
+            existingData.tasks[taskIndex_in_firebase] = updatedTask;
+            
+            // Update the originalData to reflect the changes
+            taskToUpdate.originalData = { ...updatedTask };
+            console.log('Updated existing task with unique_id:', updatedTask.unique_id);
         }
 
         existingData.lastUpdated = new Date().toISOString();
@@ -6406,6 +6481,15 @@ async function saveTaskNameModal() {
         // Store the full text for description (will be used in JSON generation)
         extractedTasks[currentTaskIndex].fullDescription = newTaskName;
 
+        // Preserve original data for matching if this is the first edit after initial parsing
+        if (!extractedTasks[currentTaskIndex].originalData || extractedTasks[currentTaskIndex].originalData.initial) {
+            extractedTasks[currentTaskIndex].originalData = {
+                task_name: extractedTasks[currentTaskIndex].taskName,
+                task_id: extractedTasks[currentTaskIndex].taskId || '',
+                initial: false  // Mark as user-edited
+            };
+        }
+
         // Update the task name field to show only the first line
         const firstLine = newTaskName.split('\n')[0].trim();
         extractedTasks[currentTaskIndex].taskName = firstLine;
@@ -6428,6 +6512,9 @@ async function saveTaskNameModal() {
                 showNotification('Failed to save budget data');
             }
         }
+
+        // Note: Task will be saved to Firebase when "Save All Tasks" is clicked
+        showNotification(`Task updated locally: ${firstLine}`);
 
         // Refresh the table to show updated task name and budget
         await displayExtractedTasks();
@@ -6693,6 +6780,13 @@ function extractTaskDetails(task) {
         }
     }
 
+    // Initialize originalData for stable key tracking
+    extracted.originalData = {
+        task_name: extracted.taskName,
+        task_id: extracted.taskId || '',
+        initial: true  // Mark as initial state
+    };
+
     return extracted;
 }
 
@@ -6771,9 +6865,11 @@ async function displayExtractedTasks() {
                 <select onchange="updateTaskField(${index}, 'sprint', this.value)"
                         class="task-select-input" style="width: 100px;">
                     <option value="">Select Sprint</option>
-                    ${masterConsoleData.sprints.map(sprint =>
-        `<option value="${sprint.name}" ${task.sprint === sprint.name ? 'selected' : ''}>${sprint.name}</option>`
-    ).join('')}
+                    ${masterConsoleData.sprints.map(sprint => {
+        // Check if task sprint matches either ID or name for backward compatibility
+        const isSelected = task.sprint === sprint.id || task.sprint === sprint.name;
+        return `<option value="${sprint.name}" ${isSelected ? 'selected' : ''}>${sprint.name}</option>`;
+    }).join('')}
                 </select>
             </td>
             <td>
@@ -7353,7 +7449,10 @@ function generateTaskJSON(task) {
     const assignedMemberID = assignedMember ? assignedMember.id : null;
 
     // Find sprint by name and get ID
-    const sprintData = masterConsoleData.sprints.find(sprint => sprint.name.toLowerCase() === task.sprint.toLowerCase());
+    const taskSprintName = (task.sprint || '').toString().toLowerCase();
+    const sprintData = masterConsoleData.sprints.find(sprint => 
+        sprint.name.toLowerCase() === taskSprintName
+    );
     const sprintID = sprintData ? sprintData.id : "2370"; // Default sprint ID if not found
 
     // Convert minutes to hours for storage
